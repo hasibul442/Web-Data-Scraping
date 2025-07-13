@@ -14,3 +14,9 @@ venv/
 *.log
 # Ignore coverage reports
 *.coverage
+
+# Output files and directories
+output/
+*.json
+*.csv
+*.xlsx
