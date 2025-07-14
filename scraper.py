@@ -85,6 +85,7 @@ class PropertyScraper:
         property_about = self.extract_property_about(url)
         price_insights = self.extract_price_insights(url)
         nearby_landmarks = self.extract_nearby_landmarks(url)
+        faq = self.extract_faq(url)
 
         print(f"Extracted {project_id}")
 
@@ -102,6 +103,7 @@ class PropertyScraper:
             'property_spec': property_spec,
             'price_insights': price_insights,
             'nearby_landmarks': nearby_landmarks,
+            'faq': faq,
         }
     
     def _extract_units(self, item):
@@ -392,3 +394,34 @@ class PropertyScraper:
         except Exception as e:
             print(f"Error scraping landmarks from {url}: {e}")
             return {}
+
+    def extract_faq(self, url):
+        """Extract FAQ list from the property details page."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"Failed to fetch FAQ section: {url}")
+                return []
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            faq_section = soup.select_one('#faq .faq-wrapper ul')
+
+            if not faq_section:
+                return []
+
+            faqs = []
+            for li in faq_section.find_all('li'):
+                question_tag = li.find('strong')
+                answer_tag = li.find('p')
+
+                if question_tag and answer_tag:
+                    faqs.append({
+                        "question": question_tag.get_text(strip=True).replace("Q: ", ""),
+                        "answer": answer_tag.get_text(strip=True)
+                    })
+
+            return faqs
+
+        except Exception as e:
+            print(f"Error scraping FAQ section from {url}: {e}")
+            return []
