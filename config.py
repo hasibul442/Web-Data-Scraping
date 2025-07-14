@@ -10,7 +10,7 @@ BASE_URL = "https://www.squareyards.com/new-projects-in-gurgaon?page="
 MAX_WORKERS = 20
 REQUEST_TIMEOUT = 10
 START_PAGE = 1
-END_PAGE = 2  # Adjust this range as needed
+END_PAGE = 1  # Adjust this range as needed
 
 # Output settings
 OUTPUT_FOLDER = 'output'
