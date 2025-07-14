@@ -33,7 +33,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in listings:
+            for item in listings[0:2]:
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -59,34 +59,45 @@ class PropertyScraper:
         project_name_elem = item.select_one('.npProjectName a strong')
         url_elem = item.select_one('.npProjectName a')
         location_elem = item.select_one('.npProjectCity')
-        developer_elem = item.select_one('.npDeveloperLogo img')
         price_elem = item.select_one('.npPriceBox')
-        
+        image_elem = item.select_one('.npFavBtn.shortlistcontainerlink')
+
         # Extract data with safety checks
         project_id = safe_get_attribute(fav_btn, 'data-projectid')
         project_name = safe_get_text(project_name_elem)
         url = safe_get_attribute(url_elem, 'href')
         location = safe_get_text(location_elem)
-        developer = safe_get_attribute(developer_elem, 'alt')
         price_range = safe_get_text(price_elem)
         status = safe_get_attribute(fav_btn, 'data-propstatus')
-        
+        image = safe_get_attribute(image_elem, 'data-image')
+
         # Skip if essential data is missing
         if not project_id or not project_name:
             return None
         
         # Extract units information
         units = self._extract_units(item)
-        
+
+        project_spec = self.extract_project_specifications(url)
+        amenities = self.extract_amenities(url)
+        builder_info = self.extract_builder_information(url)
+        property_spec = self.extract_property_specification(url)
+        property_about = self.extract_property_about(url)
+
+        print(f"Extracted {project_id}")
+
         return {
             'propertyId': project_id,
             'project_name': project_name,
-            'url': url,
             'location': location,
-            'developer': developer,
-            'priceRange': price_range,
-            'status': status,
-            'units': units
+            'image': "https://static.squareyards.com/" + image if image else None,
+            'price': price_range,
+            'project_status': status,
+            'property_about': property_about,
+            'project_spec': project_spec,
+            'amenities': amenities,
+            'builder_info': builder_info,
+            'property_spec': property_spec,
         }
     
     def _extract_units(self, item):
@@ -104,6 +115,39 @@ class PropertyScraper:
                 })
         
         return units
+
+
+    def extract_project_specifications(self, url):
+        """Scrape the details from a property's individual page."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"Failed to fetch detail page: {url}")
+                return {}
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Get status box data as array
+            status_box_items = soup.select('.status-box li:nth-of-type(3) div.status')
+            status_data = []
+            for item in status_box_items:
+                bhk_type = item.select_one('.unit strong')
+                if bhk_type:
+                    bhk_type = bhk_type.get_text(strip=True)
+                else:
+                    bhk_type = None
+                status_data.append(bhk_type)  # Debugging line
+            
+            return {
+                'unit_config': status_data[0] if status_data else None,
+                'size': status_data[1] if status_data else None,
+                'units': status_data[2] if status_data else None,
+                'area': status_data[3] if status_data else None,
+            }
+
+        except Exception as e:
+            print(f"Error scraping detail page {url}: {e}")
+            return {}
     
     def scrape_multiple_pages(self, pages, max_workers=10):
         """Scrape multiple pages concurrently."""
@@ -122,3 +166,134 @@ class PropertyScraper:
                 results.extend(page_data)
         
         return results
+
+    def extract_amenities(self, url):
+        """Extract grouped amenities with name and image from the property's page."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"Failed to fetch amenities page: {url}")
+                return {}
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            accordion_items = soup.select('.amenities-modal .accordion-item')
+
+            amenities = {}
+
+            for item in accordion_items:
+                # Get category name (e.g., Sports, Safety, etc.)
+                category_tag = item.select_one('.accordion-header strong')
+                category_name = category_tag.get_text(strip=True) if category_tag else 'Unknown'
+
+                # Prepare list of amenities under this category
+                category_amenities = []
+
+                # Find all amenity <td> blocks
+                amenity_cells = item.select('td')
+
+                for cell in amenity_cells:
+                    name_tag = cell.select_one('span')
+                    img_tag = cell.select_one('img')
+
+                    name = name_tag.get_text(strip=True) if name_tag else None
+                    image = img_tag.get('data-src') or img_tag.get('src') if img_tag else None
+
+                    if name and image:
+                        category_amenities.append({
+                            'name': name,
+                            'icon': image
+                        })
+
+                if category_amenities:
+                    amenities[category_name] = category_amenities
+
+            return amenities
+
+        except Exception as e:
+            print(f"Error scraping amenities from {url}: {e}")
+            return {}
+
+    def extract_builder_information(self, url):
+        """Extract builder information from the property's page."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"Failed to fetch builder information page: {url}")
+                return {}
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            builder_info = {}
+
+            # Extract builder name
+            builder_name_elem = soup.select_one('section.about-builder-section#aboutBuilder')
+            
+            builder_name = safe_get_text(builder_name_elem.select_one('h2 a')) if builder_name_elem else None
+            builder_image = builder_name_elem.select_one('figure img')
+            image = builder_image.get('data-src') or builder_image.get('src') if builder_image else None
+            builder_total_projects = safe_get_text(builder_name_elem.select_one('.total-project-list li:nth-of-type(1) strong'))
+            builder_experience = safe_get_text(builder_name_elem.select_one('.total-project-list li:nth-of-type(2) strong'))
+            builder_description = safe_get_text(builder_name_elem.select_one('.content-box p'))
+
+            builder_info['name'] = builder_name.strip('About - ')
+            builder_info['image'] = image.rpartition('?')[0] if '?' in image else image
+            builder_info['total_projects'] = builder_total_projects
+            builder_info['experience'] = builder_experience
+            builder_info['description'] = builder_description
+
+            return builder_info
+
+        except Exception as e:
+            print(f"Error scraping builder information from {url}: {e}")
+            return {}
+        
+    def extract_property_specification(self, url):
+        """Extract property specifications from the property's page."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"Failed to fetch property specifications page: {url}")
+                return []
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            spec_rows = soup.select('section#specifications table.specification-table tr')
+
+            specifications = []
+
+            for row in spec_rows:
+                heading_tag = row.select_one('.specification-heading strong')
+                value_tag = row.select_one('.specification-value span')
+
+                if heading_tag and value_tag:
+                    title = heading_tag.get_text(strip=True)
+                    value = value_tag.get_text(strip=True)
+
+                    specifications.append({
+                        "specification_title": title,
+                        "specification_value": value
+                    })
+
+            return specifications
+
+        except Exception as e:
+            print(f"Error scraping property specifications from {url}: {e}")
+            return []
+        
+    def extract_property_about(self, url):
+        """Extract property about information from the property's page."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"Failed to fetch property about page: {url}")
+                return []
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            about_element = soup.select_one('section.about-project-section#aboutProject .content-box')
+
+            # Extract text using a helper or directly
+            about_info = about_element.decode_contents() if about_element else ""
+
+            return about_info
+
+        except Exception as e:
+            print(f"Error scraping property specifications from {url}: {e}")
+            return []
