@@ -83,6 +83,7 @@ class PropertyScraper:
         builder_info = self.extract_builder_information(url)
         property_spec = self.extract_property_specification(url)
         property_about = self.extract_property_about(url)
+        price_insights = self.extract_price_insights(url)
 
         print(f"Extracted {project_id}")
 
@@ -98,6 +99,7 @@ class PropertyScraper:
             'amenities': amenities,
             'builder_info': builder_info,
             'property_spec': property_spec,
+            'price_insights': price_insights,
         }
     
     def _extract_units(self, item):
@@ -297,3 +299,53 @@ class PropertyScraper:
         except Exception as e:
             print(f"Error scraping property specifications from {url}: {e}")
             return []
+        
+    def extract_price_insights(self, url):
+        """Extract rental and comparable pricing insights from the property's page."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"Failed to fetch property insights page: {url}")
+                return {}
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            insights_section = soup.select_one('section.price-insight-section#dataPriceInsights')
+
+            insights_data = {
+                "rentalSupply": [],
+                "comparableProjects": []
+            }
+
+            # === RENTAL SUPPLY TABLE ===
+            rental_rows = insights_section.select(
+                'article.rental-supply .rental-supply-table table tbody tr'
+            )
+            for row in rental_rows:
+                cols = row.find_all('td')
+                if len(cols) == 3:
+                    insights_data["rentalSupply"].append({
+                        "configuration": cols[0].get_text(strip=True),
+                        "inProject": cols[1].get_text(strip=True),
+                        "inSector": cols[2].get_text(strip=True),
+                    })
+
+            # === COMPARABLE PROJECTS ===
+            comparable_projects = insights_section.select(
+                'article.comparable-projects .comparable-projects-item'
+            )
+            for proj in comparable_projects:
+                name_tag = proj.select_one('.comparable-projects-info')
+                price_tag = proj.select_one('.comparable-projects-value span')
+
+                if name_tag and price_tag:
+                    insights_data["comparableProjects"].append({
+                        "project": name_tag.get_text(strip=True),
+                        "pricePerSqFt": price_tag.get_text(strip=True),
+                    })
+
+            return insights_data
+
+        except Exception as e:
+            print(f"Error scraping property insights from {url}: {e}")
+            return {}
+
