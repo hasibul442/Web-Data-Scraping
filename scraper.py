@@ -84,6 +84,7 @@ class PropertyScraper:
         property_spec = self.extract_property_specification(url)
         property_about = self.extract_property_about(url)
         price_insights = self.extract_price_insights(url)
+        nearby_landmarks = self.extract_nearby_landmarks(url)
 
         print(f"Extracted {project_id}")
 
@@ -100,6 +101,7 @@ class PropertyScraper:
             'builder_info': builder_info,
             'property_spec': property_spec,
             'price_insights': price_insights,
+            'nearby_landmarks': nearby_landmarks,
         }
     
     def _extract_units(self, item):
@@ -349,3 +351,44 @@ class PropertyScraper:
             print(f"Error scraping property insights from {url}: {e}")
             return {}
 
+    def extract_nearby_landmarks(self, url):
+        """Extract location landmark data from the property's map section."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"Failed to fetch location landmarks page: {url}")
+                return {}
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+            landmarks_section = soup.select_one('#mapLandmarks')
+            if not landmarks_section:
+                return {}
+
+            data = {}
+
+            # Each category is in a div.near-distance-box with attribute data-attribute="Category"
+            category_blocks = landmarks_section.select('div.near-distance-box')
+
+            for block in category_blocks:
+                category_name = block.get('data-attribute', '').strip()
+                entries = []
+
+                rows = block.select('table tbody tr')
+                for row in rows:
+                    title_tag = row.select_one('.distance-title')
+                    distance_tag = row.select_one('.distance span:last-child')
+
+                    if title_tag and distance_tag:
+                        entries.append({
+                            "distance-title": title_tag.get_text(strip=True),
+                            "distance": distance_tag.get_text(strip=True)
+                        })
+
+                if category_name and entries:
+                    data[category_name] = entries
+
+            return data
+
+        except Exception as e:
+            print(f"Error scraping landmarks from {url}: {e}")
+            return {}
