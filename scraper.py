@@ -8,6 +8,15 @@ from concurrent.futures import ThreadPoolExecutor
 from config import HEADERS, BASE_URL, REQUEST_TIMEOUT
 from utils import safe_get_text, safe_get_attribute
 import re
+import undetected_chromedriver as uc
+import random
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+from collections import defaultdict
 
 class PropertyScraper:
     """A class to scrape property listings from SquareYards."""
@@ -91,7 +100,7 @@ class PropertyScraper:
         property_about = self.extract_property_about(url)
         price_insights = self.extract_price_insights(url)
         nearby_landmarks = self.extract_nearby_landmarks(url)
-        all_media = self.extract_media_by_sub_tab(url)
+        # all_media = self.extract_media_by_sub_tab(url)
         faq = self.extract_faq(url)
 
         print(f"Extracted {project_id}")
