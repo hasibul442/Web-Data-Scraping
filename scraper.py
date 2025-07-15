@@ -34,8 +34,6 @@ class PropertyScraper:
             url = self.base_url + str(page)
             response = requests.get(url, headers=self.headers, timeout=self.timeout)
 
-            
-            
             if response.status_code != 200:
                 print(f"Failed to fetch page {page}: Status {response.status_code}")
                 return []
