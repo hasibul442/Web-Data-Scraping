@@ -46,7 +46,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in tqdm(listings[0:3]):
+            for item in tqdm(listings[0:10]):
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -102,6 +102,7 @@ class PropertyScraper:
         nearby_landmarks = self.extract_nearby_landmarks(soup, url)
         faq = self.extract_faq(soup, url)
         price_list = self.extract_price_list(soup)
+        rera = self.extract_rera_details(soup)
         # all_media = self.extract_media_by_sub_tab(url)
 
         return {
@@ -118,6 +119,7 @@ class PropertyScraper:
                 'nearby_landmarks': nearby_landmarks,
                 'price_insights': price_insights,
                 'price_list': price_list,
+                'rera': rera,
             },
             'builder_info': builder_info,
             'faq': faq,
@@ -434,6 +436,50 @@ class PropertyScraper:
         except Exception as e:
             print(f"Error extracting price list: {e}")
             return []
+
+    def extract_rera_details(self, soup):
+        """Extract multiple RERA project details and Square Yards registration from the soup."""
+        try:
+            rera_info = []
+
+            # Loop through each accordion item for project RERA entries
+            accordion_items = soup.select('#reraDetails .accordion-item')
+            for item in accordion_items:
+                header = item.select_one('.accordion-header')
+                rera_id = header.get('data-reraid', '').strip()
+
+                # Extract RERA ID and project name from the <strong><span>
+                strong = header.select_one('strong')
+                rera_code = None
+                project_name = None
+
+                if strong:
+                    strong_text = strong.get_text(strip=True)
+                    rera_code = strong_text.split(' ', 1)[0]  # First part is the RERA ID
+                    span = strong.select_one('span')
+                    if span:
+                        project_name = span.get_text(strip=True)
+
+                rera_info.append({
+                    'rera_id': rera_code or rera_id,
+                    'project_name': project_name
+                })
+
+            # Get Square Yards RERA Reg.
+            sq_rera_tag = soup.select_one('.qr-box .qr-content ul li b')
+            sq_rera_text = sq_rera_tag.next_sibling.strip() if sq_rera_tag and sq_rera_tag.next_sibling else None
+
+            return {
+                'project_rera': rera_info,
+                'square_yards_rera': sq_rera_text
+            }
+
+        except Exception as e:
+            print(f"Error extracting RERA details: {e}")
+            return {
+                'project_rera': [],
+                'square_yards_rera': None
+            }
 
 
     def extract_media_by_sub_tab(self, url):
