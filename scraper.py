@@ -46,7 +46,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in tqdm(listings[0:2]):
+            for item in tqdm(listings[0:20]):
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -93,14 +93,14 @@ class PropertyScraper:
         # units = self._extract_units(item)
 
         soup = self.get_soup(url)  # Call only once per page
-        project_spec = self.extract_project_specifications(soup)
-        amenities = self.extract_amenities(soup)
-        builder_info = self.extract_builder_information(soup)
-        property_spec = self.extract_property_specification(soup)
-        property_about = self.extract_property_about(soup)
-        price_insights = self.extract_price_insights(soup)
-        nearby_landmarks = self.extract_nearby_landmarks(soup)
-        faq = self.extract_faq(soup)
+        project_spec = self.extract_project_specifications(soup, url)
+        amenities = self.extract_amenities(soup, url)
+        builder_info = self.extract_builder_information(soup, url)
+        property_spec = self.extract_property_specification(soup, url)
+        property_about = self.extract_property_about(soup, url)
+        price_insights = self.extract_price_insights(soup, url)
+        nearby_landmarks = self.extract_nearby_landmarks(soup, url)
+        faq = self.extract_faq(soup, url)
         # all_media = self.extract_media_by_sub_tab(url)
 
         return {
@@ -170,7 +170,7 @@ class PropertyScraper:
         
         return results
 
-    def extract_project_specifications(self, soup):
+    def extract_project_specifications(self, soup, url):
         """Scrape the details from a property's individual page."""
         try:
             # Get status box data as array
@@ -195,7 +195,7 @@ class PropertyScraper:
             print(f"Error scraping detail page {url}: {e}")
             return {}
     
-    def extract_amenities(self, soup):
+    def extract_amenities(self, soup, url):
         """Extract grouped amenities with name and image from the property's page."""
         try:
             accordion_items = soup.select('.amenities-modal .accordion-item')
@@ -235,7 +235,7 @@ class PropertyScraper:
             print(f"Error scraping amenities from {url}: {e}")
             return {}
 
-    def extract_builder_information(self, soup):
+    def extract_builder_information(self, soup, url):
         """Extract builder information from the property's page."""
         try:
             builder_info = {}
@@ -262,7 +262,7 @@ class PropertyScraper:
             print(f"Error scraping builder information from {url}: {e}")
             return {}
         
-    def extract_property_specification(self, soup):
+    def extract_property_specification(self, soup, url):
         """Extract property specifications from the property's page."""
         try:
             spec_rows = soup.select('section#specifications table.specification-table tr')
@@ -288,7 +288,7 @@ class PropertyScraper:
             print(f"Error scraping property specifications from {url}: {e}")
             return []
         
-    def extract_property_about(self, soup):
+    def extract_property_about(self, soup, url):
         """Extract property about information from the property's page."""
         try:
             about_element = soup.select_one('section.about-project-section#aboutProject .content-box')
@@ -302,7 +302,7 @@ class PropertyScraper:
             print(f"Error scraping property specifications from {url}: {e}")
             return []
         
-    def extract_price_insights(self, soup):
+    def extract_price_insights(self, soup, url):
         """Extract rental and comparable pricing insights from the property's page."""
         try:
             insights_section = soup.select_one('section.price-insight-section#dataPriceInsights')
@@ -344,7 +344,7 @@ class PropertyScraper:
             print(f"Error scraping property insights from {url}: {e}")
             return {}
 
-    def extract_nearby_landmarks(self, soup):
+    def extract_nearby_landmarks(self, soup, url):
         """Extract location landmark data from the property's map section."""
         try:
             landmarks_section = soup.select_one('#mapLandmarks')
@@ -380,7 +380,7 @@ class PropertyScraper:
             print(f"Error scraping landmarks from {url}: {e}")
             return {}
 
-    def extract_faq(self, soup):
+    def extract_faq(self, soup, url):
         """Extract FAQ list from the property details page."""
         try:
             faq_section = soup.select_one('#faq .faq-wrapper ul')
