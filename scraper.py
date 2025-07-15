@@ -46,7 +46,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in tqdm(listings[0:20]):
+            for item in tqdm(listings[0:3]):
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -101,6 +101,7 @@ class PropertyScraper:
         price_insights = self.extract_price_insights(soup, url)
         nearby_landmarks = self.extract_nearby_landmarks(soup, url)
         faq = self.extract_faq(soup, url)
+        price_list = self.extract_price_list(soup)
         # all_media = self.extract_media_by_sub_tab(url)
 
         return {
@@ -116,6 +117,7 @@ class PropertyScraper:
                 'amenities': amenities,
                 'nearby_landmarks': nearby_landmarks,
                 'price_insights': price_insights,
+                'price_list': price_list,
             },
             'builder_info': builder_info,
             'faq': faq,
@@ -404,6 +406,35 @@ class PropertyScraper:
         except Exception as e:
             print(f"Error scraping FAQ section from {url}: {e}")
             return []
+
+    def extract_price_list(self, soup):
+        """Extracts unit type, area, and price from the Price List section."""
+        try:
+            price_list = []
+
+            table_rows = soup.select('#priceList table tbody tr')
+            for row in table_rows:
+                cols = row.find_all('td')
+                if len(cols) >= 2:
+                    # Extract unit type + area
+                    unit_info = cols[0]
+                    unit_type = unit_info.find('span')
+                    area = unit_info.find('strong')
+
+                    # Extract price
+                    price = cols[1].find('strong')
+
+                    price_list.append({
+                        'unit_type': (re.sub(r'\s+', ' ', unit_type.get_text(strip=True)) if unit_type else '') + " " + (area.get_text(strip=True) if area else '') or None,
+                        'price': price.get_text(strip=True) if price else None
+                    })
+
+            return price_list
+
+        except Exception as e:
+            print(f"Error extracting price list: {e}")
+            return []
+
 
     def extract_media_by_sub_tab(self, url):
 
