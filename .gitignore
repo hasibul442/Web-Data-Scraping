@@ -17,6 +17,5 @@ venv/
 
 # Output files and directories
 output/
-*.json
 *.csv
 *.xlsx
