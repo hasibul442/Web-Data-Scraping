@@ -103,6 +103,7 @@ class PropertyScraper:
         faq = self.extract_faq(soup, url)
         price_list = self.extract_price_list(soup)
         rera = self.extract_rera_details(soup)
+        location_insights = self.extract_location_description_and_insights(soup)
         # all_media = self.extract_media_by_sub_tab(url)
 
         return {
@@ -120,6 +121,7 @@ class PropertyScraper:
                 'price_insights': price_insights,
                 'price_list': price_list,
                 'rera': rera,
+                'location_insights': location_insights,
             },
             'builder_info': builder_info,
             'faq': faq,
@@ -480,6 +482,40 @@ class PropertyScraper:
                 'project_rera': [],
                 'square_yards_rera': None
             }
+
+    def extract_location_description_and_insights(self, soup):
+        try:
+            section = soup.select_one("#localtionIntelligence")
+            if not section:
+                return None
+
+            # Description
+            description_tag = section.select_one(".key-insights-header .key-insights-heading .content-box")
+            description = description_tag.decode_contents() if description_tag else None
+  
+            # Insights
+            insights = []
+            for card in section.select(".key-insight-card"):
+                icon = card.select_one("figure img")['src'] if card.select_one("figure img") else None
+                text = card.select_one("p").get_text(separator=" ", strip=True) if card.select_one("p") else None
+                insights.append({
+                    "icon": "https://www.squareyards.com/" + icon.lstrip("/") if "/assets" in icon else "https://www.squareyards.com/" + icon,
+                    "text": text
+                })
+
+            # Know more URL
+            know_more_tag = section.select_one(".keyinside-btn-box a")
+            know_more_url = know_more_tag.get("href") if know_more_tag else None
+
+            return {
+                "description": description,
+                "insights": insights,
+                "know_more_url": know_more_url
+            }
+
+        except Exception as e:
+            print(f"Error in extract_location_description_and_insights: {e}")
+            return None
 
 
     def extract_media_by_sub_tab(self, url):
