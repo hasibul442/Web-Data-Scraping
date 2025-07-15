@@ -1,10 +1,13 @@
 # Web scraper for Gurgaon properties
 
+import time
+import traceback
 import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 from config import HEADERS, BASE_URL, REQUEST_TIMEOUT
 from utils import safe_get_text, safe_get_attribute
+import re
 
 class PropertyScraper:
     """A class to scrape property listings from SquareYards."""
@@ -20,6 +23,8 @@ class PropertyScraper:
             print(f"Scraping page {page}")
             url = self.base_url + str(page)
             response = requests.get(url, headers=self.headers, timeout=self.timeout)
+
+            
             
             if response.status_code != 200:
                 print(f"Failed to fetch page {page}: Status {response.status_code}")
@@ -40,6 +45,7 @@ class PropertyScraper:
                         page_data.append(property_data)
                 except Exception as e:
                     print(f"Error parsing one property on page {page}: {e}")
+                    traceback.print_exc()
                     continue
                     
             print(f"Found {len(page_data)} properties on page {page}")
@@ -85,25 +91,29 @@ class PropertyScraper:
         property_about = self.extract_property_about(url)
         price_insights = self.extract_price_insights(url)
         nearby_landmarks = self.extract_nearby_landmarks(url)
+        all_media = self.extract_media_by_sub_tab(url)
         faq = self.extract_faq(url)
 
         print(f"Extracted {project_id}")
 
         return {
             'propertyId': project_id,
-            'project_name': project_name,
-            'location': location,
-            'image': "https://static.squareyards.com/" + image if image else None,
-            'price': price_range,
-            'project_status': status,
-            'property_about': property_about,
-            'project_spec': project_spec,
-            'amenities': amenities,
+            'project': {
+                'name': project_name,
+                'location': location,
+                'status': status,
+                'price': price_range,
+                'about': property_about,
+                "information": property_spec,
+                'specifications': project_spec,
+                'amenities': amenities,
+                'nearby_landmarks': nearby_landmarks,
+                'price_insights': price_insights,
+            },
             'builder_info': builder_info,
-            'property_spec': property_spec,
-            'price_insights': price_insights,
-            'nearby_landmarks': nearby_landmarks,
             'faq': faq,
+            'image': "https://static.squareyards.com/" + image if image else None,
+            'all_media': all_media,
         }
     
     def _extract_units(self, item):
@@ -146,7 +156,7 @@ class PropertyScraper:
             
             return {
                 'unit_config': status_data[0] if status_data else None,
-                'size': status_data[1] if status_data else None,
+                'size': re.sub(r'\s+', ' ', status_data[1]).strip() if status_data else None,
                 'units': status_data[2] if status_data else None,
                 'area': status_data[3] if status_data else None,
             }
@@ -274,8 +284,8 @@ class PropertyScraper:
                     value = value_tag.get_text(strip=True)
 
                     specifications.append({
-                        "specification_title": title,
-                        "specification_value": value
+                        "title": title,
+                        "value": value
                     })
 
             return specifications
@@ -329,7 +339,6 @@ class PropertyScraper:
                 if len(cols) == 3:
                     insights_data["rentalSupply"].append({
                         "configuration": cols[0].get_text(strip=True),
-                        "inProject": cols[1].get_text(strip=True),
                         "inSector": cols[2].get_text(strip=True),
                     })
 
@@ -425,3 +434,108 @@ class PropertyScraper:
         except Exception as e:
             print(f"Error scraping FAQ section from {url}: {e}")
             return []
+
+    def extract_media_by_sub_tab(self, url):
+
+        USER_AGENTS = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; rv:121.0) Gecko/20100101 Firefox/121.0",
+            # add more if needed
+        ]
+
+        user_agent = random.choice(USER_AGENTS)
+
+
+        options = uc.ChromeOptions()
+        options.add_argument(f'user-agent={user_agent}')
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--start-maximized")
+
+        driver = uc.Chrome(options=options)
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
+        # load page
+        driver.get(url)
+        time.sleep(random.uniform(2, 4))
+
+        try:
+            wait = WebDriverWait(driver, 15)
+
+            # Open gallery modal
+            try:
+                trigger = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, '.load-gallery')))
+                trigger.click()
+                time.sleep(2)  # wait for animation
+            except TimeoutException:
+                print(f"[TIMEOUT] Could not click '.load-gallery' on {url}")
+                driver.save_screenshot("timeout_error.png")
+                return {'images': {}, 'videos': []}
+
+            # Wait for gallery content
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '.bxslider figure')))
+            figures = driver.find_elements(By.CSS_SELECTOR, '.bxslider figure')
+
+            images = defaultdict(list)
+            videos = []
+
+            for fig in figures:
+                try:
+                    sub_tab = fig.get_attribute("sub-tab")
+
+                    # --- Image ---
+                    img_tags = fig.find_elements(By.TAG_NAME, 'img')
+                    if img_tags:
+                        img = img_tags[0]
+                        title = img.get_attribute("title")
+                        src = img.get_attribute("src")
+                        alt = img.get_attribute("alt")
+
+                        if sub_tab and src:
+                            images[sub_tab].append({
+                                "title": title,
+                                "src": src.split('?')[0],
+                                "alt": alt
+                            })
+                        continue
+
+                    # --- Video ---
+                    video_tags = fig.find_elements(By.TAG_NAME, 'video')
+                    if video_tags:
+                        video_tag = video_tags[0]
+                        source_tags = video_tag.find_elements(By.TAG_NAME, 'source')
+                        if not source_tags:
+                            continue
+                        source = source_tags[0]
+                        video_src = source.get_attribute("src")
+                        video_type = source.get_attribute("type")
+                        alt = video_tag.get_attribute("alt") or ""
+
+                        videos.append({
+                            "type": video_type,
+                            "src": video_src,
+                            "alt": alt
+                        })
+
+                except Exception as e:
+                    print(f"[WARN] Failed to extract one figure: {e}")
+                    traceback.print_exc()
+                    continue
+
+            # Final structured result
+            return {
+                "images": dict(images),
+                "videos": videos
+            }
+
+        finally:
+            driver.quit()
+
+
+
+
+# for 3d use this link https://3dviewer-virtualtour.squareyards.com/?id=478940
