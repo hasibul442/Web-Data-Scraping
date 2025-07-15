@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 from config import HEADERS, BASE_URL, REQUEST_TIMEOUT
+from media_extractor import extract_media_by_sub_tab
 from utils import safe_get_text, safe_get_attribute
 import re
 # import undetected_chromedriver as uc
@@ -106,7 +107,7 @@ class PropertyScraper:
         price_list = self.extract_price_list(soup)
         rera = self.extract_rera_details(soup)
         location_insights = self.extract_location_description_and_insights(soup)
-        all_media = self.extract_media_by_sub_tab(url)
+        all_media = extract_media_by_sub_tab(url)
 
         return {
             'property_id': project_id,
