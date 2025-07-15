@@ -16,6 +16,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from collections import defaultdict
 from tqdm import tqdm
 
@@ -46,7 +48,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in tqdm(listings[0:10]):
+            for item in tqdm(listings[0:3]):
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -104,7 +106,7 @@ class PropertyScraper:
         price_list = self.extract_price_list(soup)
         rera = self.extract_rera_details(soup)
         location_insights = self.extract_location_description_and_insights(soup)
-        # all_media = self.extract_media_by_sub_tab(url)
+        all_media = self.extract_media_by_sub_tab(url)
 
         return {
             'property_id': project_id,
@@ -126,7 +128,7 @@ class PropertyScraper:
             'builder_info': builder_info,
             'faq': faq,
             'image': "https://static.squareyards.com/" + image if image else None,
-            # 'all_media': all_media,
+            'all_media': all_media,
         }
     
     def _extract_units(self, item):
@@ -531,15 +533,16 @@ class PropertyScraper:
         user_agent = random.choice(USER_AGENTS)
 
 
-        options = uc.ChromeOptions()
+        options = Options()
+        options.add_argument("--headless")  # Run in headless mode
         options.add_argument(f'user-agent={user_agent}')
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--start-maximized")
+        # options.add_argument("--start-maximized")
 
-        driver = uc.Chrome(options=options)
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
         # load page
