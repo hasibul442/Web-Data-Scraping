@@ -182,22 +182,25 @@ class PropertyScraper:
         """Scrape the details from a property's individual page."""
         try:
             # Get status box data as array
-            status_box_items = soup.select('.status-box li:nth-of-type(3) div.status')
-            status_data = []
-            for item in status_box_items:
-                bhk_type = item.select_one('.unit strong')
-                if bhk_type:
-                    bhk_type = bhk_type.get_text(strip=True)
-                else:
-                    bhk_type = None
-                status_data.append(bhk_type)  # Debugging line
+            overview = {}
+
+            # Get the status box list
+            status_box = soup.select_one(".left-side .status-box")
+            if not status_box:
+                return None
             
-            return {
-                'unit_config': status_data[0] if status_data else None,
-                'size': re.sub(r'\s+', ' ', status_data[1]).strip() if status_data else None,
-                'units': status_data[2] if status_data else None,
-                'area': status_data[3] if status_data else None,
-            }
+            # Third <li>: Unit Config, Size, Number of Units, Total Area
+            unit_config = status_box.select_one("li:nth-of-type(3) .status:nth-of-type(1) .bhk-type")
+            size = status_box.select_one("li:nth-of-type(3) .status:nth-of-type(2) strong")
+            number_of_units = status_box.select_one("li:nth-of-type(3) .status:nth-of-type(3) strong")
+            total_area = status_box.select_one("li:nth-of-type(3) .status:nth-of-type(4) strong")
+
+            overview["unit_config"] = unit_config.get_text(strip=True) if unit_config else None
+            overview["size"] = re.sub(r'\s+', ' ', size.get_text(strip=True)) if size else None
+            overview["units"] = number_of_units.get_text(strip=True) if number_of_units else None
+            overview["total_area"] = total_area.get_text(strip=True) if total_area else None
+
+            return overview
 
         except Exception as e:
             print(f"Error scraping detail page {url}: {e}")
@@ -518,7 +521,6 @@ class PropertyScraper:
         except Exception as e:
             print(f"Error in extract_location_description_and_insights: {e}")
             return None
-
 
     def extract_media_by_sub_tab(self, url):
 
