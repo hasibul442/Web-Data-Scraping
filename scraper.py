@@ -9,7 +9,6 @@ from config import HEADERS, BASE_URL, REQUEST_TIMEOUT
 from media_extractor import extract_media_by_sub_tab
 from utils import safe_get_text, safe_get_attribute
 import re
-# import undetected_chromedriver as uc
 import random
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -107,7 +106,8 @@ class PropertyScraper:
         price_list = self.extract_price_list(soup)
         rera = self.extract_rera_details(soup)
         location_insights = self.extract_location_description_and_insights(soup)
-        all_media = extract_media_by_sub_tab(url)
+        floor_plan = self.extract_floor_plans(soup)
+        # all_media = extract_media_by_sub_tab(url)
 
         return {
             'property_id': project_id,
@@ -123,13 +123,14 @@ class PropertyScraper:
                 'nearby_landmarks': nearby_landmarks,
                 'price_insights': price_insights,
                 'price_list': price_list,
+                'floor_plans': floor_plan,
                 'rera': rera,
                 'location_insights': location_insights,
             },
             'builder_info': builder_info,
             'faq': faq,
             'image': "https://static.squareyards.com/" + image if image else None,
-            'all_media': all_media,
+            # 'all_media': all_media,
         }
     
     def _extract_units(self, item):
@@ -147,7 +148,6 @@ class PropertyScraper:
                 })
         
         return units
-
 
     def get_soup(self, url):
         """Reusable method to perform GET request and return parsed HTML soup."""
@@ -308,8 +308,7 @@ class PropertyScraper:
             # Extract text using a helper or directly
             about_info = about_element.decode_contents() if about_element else ""
 
-            return about_info
-
+            return about_info.strip("\n")
         except Exception as e:
             print(f"Error scraping property specifications from {url}: {e}")
             return []
@@ -522,3 +521,66 @@ class PropertyScraper:
         except Exception as e:
             print(f"Error in extract_location_description_and_insights: {e}")
             return None
+    
+    def extract_floor_plans(self, soup):
+        try:
+            # Find the main section for floor plans
+            section = soup.select_one("#floorPlans")
+            if not section:
+                return None
+
+            # Create a dictionary to store floor plans based on their category (3_bhk, 4_bhk, etc.)
+            floor_plans = {}
+
+            # Find all floor plan sliders (excluding "all" category)
+            sliders = section.select('[id^=floorPlansSlider_]')
+            
+            for slider in sliders:
+                # Ignore the "all" category slider
+                if 'all' in slider['id']:
+                    continue
+                print(f"Processing slider: {slider['id']}")
+                # Extract the category from the slider ID (e.g., "floorPlansSlider_3_bhk" -> "3_bhk")
+                category = slider['id'].split('floorPlansSlider_')[1] if 'floorPlansSlider_' in slider['id'] else slider['id']
+
+                # Initialize the category in the result dictionary if not already present
+                floor_plans[category] = []
+
+                # Find all the floor plan items within this category slider
+                floor_plan_items = slider.select('.floor-plan-item')
+
+                for item in floor_plan_items:
+                    # Extract the necessary details for each floor plan item
+                    title = item.select_one('.floor-plan-title strong')
+                    title = title.get_text(strip=True) if title else ''
+
+                    attribute = item.select_one('.floor-plan-title span')
+                    attribute = attribute.get_text(strip=True) if attribute else ''
+
+                    img_tag = item.select_one('.unit-cover-bg img')
+                    alt = img_tag['alt'] if img_tag and 'alt' in img_tag.attrs else ''
+                    dd_src = img_tag['data-src'] if img_tag and 'data-src' in img_tag.attrs else ''
+
+                    price = item.select_one('.price-box strong')
+                    price = price.get_text(strip=True) if price else ''
+
+                    # Extract the planid for the 3D virtual tour link
+                    planid_tag = item.select_one('.virtual-badge')
+                    planid = planid_tag['planid'] if planid_tag and 'planid' in planid_tag.attrs else ''
+                    ddd_src = f"https://3dviewer-virtualtour.squareyards.com/?id={planid}" if planid else ''
+
+                    # Add the extracted information to the floor plan list
+                    floor_plans[category].append({
+                        "title": title,
+                        "attribute": re.sub('[()]', '', attribute),
+                        "2d_src": dd_src.rpartition('?')[0] if '?' in dd_src else dd_src,
+                        "alt": alt,
+                        "3d_src": ddd_src,
+                        "price": price
+                    })
+
+            return floor_plans
+
+        except Exception as e:
+            print(f"Error in extract_floor_plans: {e}")
+            return None 
