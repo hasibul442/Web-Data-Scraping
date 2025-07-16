@@ -107,30 +107,30 @@ class PropertyScraper:
         rera = self.extract_rera_details(soup)
         location_insights = self.extract_location_description_and_insights(soup)
         floor_plan = self.extract_floor_plans(soup)
-        # all_media = extract_media_by_sub_tab(url)
+        all_media = extract_media_by_sub_tab(url)
 
         return {
             'property_id': project_id,
             'project': {
                 'name': project_name,
                 'location': location,
+                'thumbnail_image': "https://static.squareyards.com/" + image if image else None,
                 'status': status,
                 'price': price_range,
                 'about': property_about,
-                "information": property_spec,
-                'specifications': project_spec,
-                'amenities': amenities,
-                'nearby_landmarks': nearby_landmarks,
-                'price_insights': price_insights,
+                "information": project_spec,
                 'price_list': price_list,
                 'floor_plans': floor_plan,
+                'price_insights': price_insights,
+                'amenities': amenities,
+                'specifications': property_spec,
+                'nearby_landmarks': nearby_landmarks,
                 'rera': rera,
                 'location_insights': location_insights,
             },
             'builder_info': builder_info,
             'faq': faq,
-            'image': "https://static.squareyards.com/" + image if image else None,
-            # 'all_media': all_media,
+            'all_media': all_media,
         }
     
     def _extract_units(self, item):
@@ -539,7 +539,7 @@ class PropertyScraper:
                 # Ignore the "all" category slider
                 if 'all' in slider['id']:
                     continue
-                print(f"Processing slider: {slider['id']}")
+                # print(f"Processing slider: {slider['id']}")
                 # Extract the category from the slider ID (e.g., "floorPlansSlider_3_bhk" -> "3_bhk")
                 category = slider['id'].split('floorPlansSlider_')[1] if 'floorPlansSlider_' in slider['id'] else slider['id']
 
