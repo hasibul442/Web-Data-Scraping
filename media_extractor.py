@@ -1,19 +1,20 @@
-# media_extractor.py
 import random
 import time
 import traceback
+import requests
 from collections import defaultdict
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
-from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
 
+def extract_media_by_sub_tab(project_id, url):
 
-def extract_media_by_sub_tab(url):
+    request_url = 'https://www.squareyards.com/loadcommongallery'
+    
+    # Set the payload for the POST request
+    payload = {
+        "projectId": project_id,
+        "type": "Project"
+    }
+
     USER_AGENTS = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -27,69 +28,59 @@ def extract_media_by_sub_tab(url):
         "Mozilla/5.0 (Android 14; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0"
     ]
 
+    # Choose a random user agent for the request
     user_agent = random.choice(USER_AGENTS)
 
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument(f'user-agent={user_agent}')
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--disable-dev-shm-usage")
+    # Prepare headers
+    headers = {
+        'User-Agent': user_agent
+        }
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    response = requests.post(request_url, headers=headers, json=payload)
+    if response.status_code != 200:
+        print(f"[ERROR] Failed to fetch data from {url}. Status code: {response.status_code}")
+        return {'images': {}, 'videos': []}
 
-    driver.get(url)
-    time.sleep(random.uniform(2, 4))
-
+    # Parse the HTML response with BeautifulSoup
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
     try:
-        wait = WebDriverWait(driver, 15)
-
-        try:
-            trigger = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, '.load-gallery')))
-            trigger.click()
-            time.sleep(2)
-        except TimeoutException:
-            print(f"[TIMEOUT] Could not click '.load-gallery' on {url}")
-            driver.save_screenshot("timeout_error.png")
-            return {'images': {}, 'videos': []}
-
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '.bxslider figure')))
-        figures = driver.find_elements(By.CSS_SELECTOR, '.bxslider figure')
+        figures = soup.select('.bxslider figure')  # Select all figure tags under .bxslider
 
         images = defaultdict(list)
         videos = []
 
         for fig in figures:
             try:
-                sub_tab = fig.get_attribute("sub-tab")
+                sub_tab = fig.get('sub-tab')
 
-                img_tags = fig.find_elements(By.TAG_NAME, 'img')
+                # Extract images
+                img_tags = fig.find_all('img')
                 if img_tags:
                     img = img_tags[0]
-                    title = img.get_attribute("title")
-                    src = img.get_attribute("src")
-                    alt = img.get_attribute("alt")
+                    title = img.get('title')
+                    src = img.get('src')
+                    alt = img.get('alt')
 
                     if sub_tab and src:
                         images[sub_tab].append({
                             "title": title,
-                            "src": src.split('?')[0],
+                            "src": src.split('?')[0],  # Remove any query parameters
                             "alt": alt
                         })
                     continue
 
-                video_tags = fig.find_elements(By.TAG_NAME, 'video')
+                # Extract videos
+                video_tags = fig.find_all('video')
                 if video_tags:
                     video_tag = video_tags[0]
-                    source_tags = video_tag.find_elements(By.TAG_NAME, 'source')
+                    source_tags = video_tag.find_all('source')
                     if not source_tags:
                         continue
                     source = source_tags[0]
-                    video_src = source.get_attribute("src")
-                    video_type = source.get_attribute("type")
-                    alt = video_tag.get_attribute("alt") or ""
+                    video_src = source.get('src')
+                    video_type = source.get('type')
+                    alt = video_tag.get('alt') or ""
 
                     videos.append({
                         "type": video_type,
@@ -107,6 +98,6 @@ def extract_media_by_sub_tab(url):
             "videos": videos
         }
 
-    finally:
-        driver.quit()
-        print(f"[INFO] Finished extracting media from {url}")
+    except Exception as e:
+        print(f"[ERROR] Failed to parse the response: {e}")
+        return {'images': {}, 'videos': []}

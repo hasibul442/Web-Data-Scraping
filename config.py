@@ -7,8 +7,8 @@ HEADERS = {
 BASE_URL = "https://www.squareyards.com/new-projects-in-gurgaon?page="
 
 # Scraping settings
-MAX_WORKERS = 20
-REQUEST_TIMEOUT = 10
+MAX_WORKERS = 5
+REQUEST_TIMEOUT = 60
 START_PAGE = 1
 END_PAGE = 1  # Adjust this range as needed
 

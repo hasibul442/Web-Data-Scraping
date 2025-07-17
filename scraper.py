@@ -107,7 +107,7 @@ class PropertyScraper:
         rera = self.extract_rera_details(soup)
         location_insights = self.extract_location_description_and_insights(soup)
         floor_plan = self.extract_floor_plans(soup)
-        all_media = extract_media_by_sub_tab(url)
+        all_media = extract_media_by_sub_tab(project_id, url)
 
         return {
             'property_id': project_id,
