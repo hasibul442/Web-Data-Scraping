@@ -48,7 +48,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in tqdm(listings[0:3]):
+            for item in tqdm(listings[9:12]):
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -115,18 +115,18 @@ class PropertyScraper:
                 'name': project_name,
                 'location': location,
                 'thumbnail_image': "https://static.squareyards.com/" + image if image else None,
-                'status': status,
                 'price': price_range,
-                'about': property_about,
+                'price_insights': price_insights,
+                'status': status,
                 "information": project_spec,
                 'price_list': price_list,
                 'floor_plans': floor_plan,
-                'price_insights': price_insights,
                 'amenities': amenities,
                 'specifications': property_spec,
+                'about': property_about,
                 'nearby_landmarks': nearby_landmarks,
-                'rera': rera,
                 'location_insights': location_insights,
+                'rera': rera,
             },
             'builder_info': builder_info,
             'faq': faq,
@@ -319,9 +319,21 @@ class PropertyScraper:
             insights_section = soup.select_one('section.price-insight-section#dataPriceInsights')
 
             insights_data = {
-                "rentalSupply": [],
-                "comparableProjects": []
+                "rental_supply": [],
+                "comparable_projects": [],
+                "asking_price": []
             }
+
+            # === ASKING PRICE ===
+            asking_price_info = insights_section.select_one('article.market-supply .price-insight-info-box')
+            asking_price_data = insights_section.select_one('article.market-supply #dataPriceInsightsContainer')
+            if asking_price_info and asking_price_data:
+                insights_data["asking_price"] = {
+                    "ininsight_info": safe_get_text(asking_price_info),
+                    "data": asking_price_data.decode_contents().replace("\n", "") if asking_price_data else None,
+                    "data-median": asking_price_data['data-median'] if asking_price_data and 'data-median' in asking_price_data.attrs else None,
+                    "data-medianLabel": asking_price_data['data-medianLabel'] if asking_price_data and 'data-medianLabel' in asking_price_data.attrs else None,
+                }
 
             # === RENTAL SUPPLY TABLE ===
             rental_rows = insights_section.select(
@@ -330,7 +342,7 @@ class PropertyScraper:
             for row in rental_rows:
                 cols = row.find_all('td')
                 if len(cols) == 3:
-                    insights_data["rentalSupply"].append({
+                    insights_data["rental_supply"].append({
                         "configuration": cols[0].get_text(strip=True),
                         "inSector": cols[2].get_text(strip=True),
                     })
@@ -344,7 +356,7 @@ class PropertyScraper:
                 price_tag = proj.select_one('.comparable-projects-value span')
 
                 if name_tag and price_tag:
-                    insights_data["comparableProjects"].append({
+                    insights_data["comparable_projects"].append({
                         "project": name_tag.get_text(strip=True),
                         "pricePerSqFt": price_tag.get_text(strip=True),
                     })
