@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 from config import HEADERS, BASE_URL, REQUEST_TIMEOUT
 from media_extractor import extract_media_by_sub_tab
+from builder_information import extract_builder_information
 from utils import safe_get_text, safe_get_attribute
 import re
 import random
@@ -90,14 +91,12 @@ class PropertyScraper:
         # Skip if essential data is missing
         if not project_id or not project_name:
             return None
-        
-        # Extract units information
-        # units = self._extract_units(item)
 
         soup = self.get_soup(url)  # Call only once per page
         project_spec = self.extract_project_specifications(soup, url)
         amenities = self.extract_amenities(soup, url)
-        builder_info = self.extract_builder_information(soup, url)
+        builder_info = extract_builder_information(soup, url)
+        # builder_info = self.extract_builder_information(soup, url)
         property_spec = self.extract_property_specification(soup, url)
         property_about = self.extract_property_about(soup, url)
         price_insights = self.extract_price_insights(soup, url)
@@ -133,22 +132,6 @@ class PropertyScraper:
             'all_media': all_media,
         }
     
-    def _extract_units(self, item):
-        """Extract units information from a property listing."""
-        units = []
-        unit_rows = item.select('.pTable tbody tr')
-        
-        for row in unit_rows:
-            cols = row.find_all('td')
-            if len(cols) == 3:
-                units.append({
-                    'unit': safe_get_text(cols[0]),
-                    'size': safe_get_text(cols[1]),
-                    'price': safe_get_text(cols[2])
-                })
-        
-        return units
-
     def get_soup(self, url):
         """Reusable method to perform GET request and return parsed HTML soup."""
         try:
