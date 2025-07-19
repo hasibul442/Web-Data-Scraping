@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from config import HEADERS, BASE_URL, REQUEST_TIMEOUT
 from media_extractor import extract_media_by_sub_tab
 from utils import safe_get_text, safe_get_attribute
+from location_insights_scraper import LocationInsightsScraper
 import re
 import random
 from selenium import webdriver
@@ -28,6 +29,8 @@ class PropertyScraper:
         self.headers = headers or HEADERS
         self.base_url = base_url or BASE_URL
         self.timeout = timeout or REQUEST_TIMEOUT
+        # Initialize location insights scraper
+        self.location_insights_scraper = LocationInsightsScraper(headers=self.headers, timeout=self.timeout)
     
     def scrape_page(self, page):
         """Scrape a single page and return property data."""
@@ -327,7 +330,8 @@ class PropertyScraper:
             # === ASKING PRICE ===
             asking_price_info = insights_section.select_one('article.market-supply .price-insight-info-box')
             asking_price_data = insights_section.select_one('article.market-supply #dataPriceInsightsContainer')
-            if asking_price_info and asking_price_data:
+
+            if asking_price_info or asking_price_data:
                 insights_data["asking_price"] = {
                     "ininsight_info": safe_get_text(asking_price_info),
                     "data": asking_price_data.decode_contents().replace("\n", "") if asking_price_data else None,
@@ -508,8 +512,8 @@ class PropertyScraper:
 
             # Description
             description_tag = section.select_one(".key-insights-header .key-insights-heading .content-box")
-            description = description_tag.decode_contents() if description_tag else None
-  
+            description = description_tag.decode_contents().replace('\n', ' ').strip() if description_tag else None
+
             # Insights
             insights = []
             for card in section.select(".key-insight-card"):
@@ -532,6 +536,21 @@ class PropertyScraper:
 
         except Exception as e:
             print(f"Error in extract_location_description_and_insights: {e}")
+            return None
+    
+    def extract_detailed_location_insights(self, know_more_url):
+        """Extract detailed location insights using the LocationInsightsScraper."""
+        try:
+            if not know_more_url:
+                return None
+            
+            # Use the location insights scraper to get detailed data
+            detailed_insights = self.location_insights_scraper.extract_location_insights(know_more_url)
+            
+            return detailed_insights
+            
+        except Exception as e:
+            print(f"Error extracting detailed location insights: {e}")
             return None
     
     def extract_floor_plans(self, soup):
