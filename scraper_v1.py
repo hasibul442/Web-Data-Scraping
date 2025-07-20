@@ -20,11 +20,6 @@ class PropertyScraper:
         self.headers = headers or HEADERS
         self.base_url = base_url or BASE_URL
         self.timeout = timeout or REQUEST_TIMEOUT
-        # Collections for unique builders and location insights
-        self.builders_collection = {}
-        self.location_insights_collection = {}
-        self.builder_id_counter = 1
-        self.location_id_counter = 1
     
     def scrape_page(self, page):
         """Scrape a single page and return property data."""
@@ -45,7 +40,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in tqdm(listings):
+            for item in tqdm(listings[9:12]):
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -64,49 +59,6 @@ class PropertyScraper:
         except Exception as e:
             print(f"Error scraping page {page}: {e}")
             return []
-
-    def _get_or_create_builder_id(self, builder_info):
-        """Get existing builder ID or create new one for unique builders."""
-        if not builder_info or not builder_info.get('name'):
-            return None
-        
-        builder_name = builder_info['name']
-        
-        # Check if builder already exists
-        for builder_id, existing_builder in self.builders_collection.items():
-            if existing_builder.get('name') == builder_name:
-                return builder_id
-        
-        # Create new builder entry
-        builder_id = f"builder_{self.builder_id_counter}"
-        self.builders_collection[builder_id] = {
-            'id': builder_id,
-            **builder_info
-        }
-        self.builder_id_counter += 1
-        return builder_id
-    
-    def _get_or_create_location_id(self, location_insights):
-        """Get existing location ID or create new one for unique locations."""
-        if not location_insights or not location_insights.get('url'):
-            return None
-        
-        location_url = location_insights['url']
-        
-        # Check if location already exists
-        for location_id, existing_location in self.location_insights_collection.items():
-            if existing_location.get('url') == location_url:
-                return location_id
-        
-        # Create new location entry
-        location_id = f"location_{self.location_id_counter}"
-        self.location_insights_collection[location_id] = {
-            'id': location_id,
-            **location_insights
-        }
-        self.location_id_counter += 1
-        return location_id
-        
 
     def _extract_property_data(self, item):
         """Extract property data from a listing item."""
@@ -134,8 +86,8 @@ class PropertyScraper:
         soup = self.get_soup(url)  # Call only once per page
         project_spec = self.extract_project_specifications(soup, url)
         amenities = self.extract_amenities(soup, url)
-        # Use the class method for builder info instead of the imported function
-        builder_info = self.extract_builder_information(soup, url)
+        builder_info = extract_builder_information(soup, url)
+        # builder_info = self.extract_builder_information(soup, url)
         property_spec = self.extract_property_specification(soup, url)
         property_about = self.extract_property_about(soup, url)
         price_insights = self.extract_price_insights(soup, url)
@@ -145,33 +97,33 @@ class PropertyScraper:
         rera = self.extract_rera_details(soup)
         floor_plan = self.extract_floor_plans(soup)
         all_media = extract_media_by_sub_tab(project_id, url)
-        location_insights_basic = self.extract_location_description_and_insights(soup)
-        detailed_location_insights = extract_location_insights(location_insights_basic["know_more_url"]) if location_insights_basic and location_insights_basic.get("know_more_url") else None
-
-        # Get or create IDs for builder and location
-        builder_id = self._get_or_create_builder_id(builder_info)
-        location_id = self._get_or_create_location_id(detailed_location_insights)
+        location_insights = self.extract_location_description_and_insights(soup)
+        detailed_location_insights = extract_location_insights(location_insights["know_more_url"])
 
         return {
             'property_id': project_id,
-            'name': project_name,
-            'location': location,
-            'thumbnail_image': "https://static.squareyards.com/" + image if image else None,
-            'price': price_range,
-            'price_insights': price_insights,
-            'status': status,
-            "information": project_spec,
-            'price_list': price_list,
-            'floor_plans': floor_plan,
-            'amenities': amenities,
-            'specifications': property_spec,
-            'about': property_about,
-            'nearby_landmarks': nearby_landmarks,
-            'location_insights': location_id,  # Reference to location insights
-            'rera': rera,
+            'project': {
+                'name': project_name,
+                'location': location,
+                'thumbnail_image': "https://static.squareyards.com/" + image if image else None,
+                'price': price_range,
+                'price_insights': price_insights,
+                'status': status,
+                "information": project_spec,
+                'price_list': price_list,
+                'floor_plans': floor_plan,
+                'amenities': amenities,
+                'specifications': property_spec,
+                'about': property_about,
+                'nearby_landmarks': nearby_landmarks,
+                # 'location_insights': location_insights,
+                'location_insights': detailed_location_insights,
+                'rera': rera,
+            },
+            'builder_info': builder_info,
             'faq': faq,
-            'builder_info': builder_id,  # Reference to builder info
             'all_media': all_media,
+            # 'detailed_location_insights': detailed_location_insights
         }
     
     def get_soup(self, url):
@@ -189,25 +141,20 @@ class PropertyScraper:
     def scrape_multiple_pages(self, pages, max_workers=10):
         """Scrape multiple pages concurrently."""
         if not pages:
-            return {}
+            return []
             
         print(f"Starting to scrape {len(pages)} pages with {max_workers} workers")
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             all_pages_data = list(executor.map(self.scrape_page, pages))
         
-        # Flatten the results to get all projects
-        projects = []
+        # Flatten the results
+        results = []
         for page_data in all_pages_data:
             if page_data:
-                projects.extend(page_data)
+                results.extend(page_data)
         
-        # Return structured output
-        return {
-            'project': projects,
-            'builder_info': list(self.builders_collection.values()),
-            'location_insights': list(self.location_insights_collection.values())
-        }
+        return results
 
     def extract_project_specifications(self, soup, url):
         """Scrape the details from a property's individual page."""
