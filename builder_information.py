@@ -41,6 +41,7 @@ def extract_builder_information(soupbody, url):
     # exit()
     
     return {
+        "name": heading_tag.get_text(strip=True).replace('About - ', '') if heading_tag else "No Name Found",
         "overview": get_builder_description(soup),
         "head_office_address": get_head_office_address(soup),
         "branch_office_address": get_branch_offices(soup),
