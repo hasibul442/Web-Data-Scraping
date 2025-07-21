@@ -45,11 +45,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-<<<<<<< HEAD
-            for item in tqdm(listings[11:13]):
-=======
             for item in tqdm(listings[6:8]):
->>>>>>> 4275659df32e32f7eeb64a42e3382a422186a066
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
