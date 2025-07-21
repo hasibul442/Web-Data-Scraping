@@ -36,22 +36,58 @@ def extract_builder_information(soupbody, url):
     if not soup:
         return {}
 
-    # data = get_head_office_address(soup)
-    # print(f"[INFO] Extracted head office address: {data}")
-    # exit()
     
     return {
+        "id" : builder_page_url.split('/')[-2],
+        "name": heading_tag.get_text(strip=True).replace('About - ', '') if heading_tag else "No Name Found",
+        "image": get_builder_short_description(soup).get("image", {}),
+        "experience": get_builder_short_description(soup).get("experience", ""),
+        "projects": get_builder_short_description(soup).get("projects", {}),
         "overview": get_builder_description(soup),
         "head_office_address": get_head_office_address(soup),
         "branch_office_address": get_branch_offices(soup),
         "company_size": get_company_size(soup),
         "management_team": get_management_team(soup),
-        "key_service_and_specialities": get_key_service_and_specialities(soup),
-        "awards_and_recognition": get_awards_and_recognition(soup),
+        "key_service_and_specialities": get_key_service_and_specialities(soup).replace('\n', ' ').strip() if get_key_service_and_specialities(soup) else None,
+        "awards_and_recognition": get_awards_and_recognition(soup).replace('\n', ' ').strip() if get_awards_and_recognition(soup) else None,
         "customer_care_number" : get_customer_care_number(soup),
         "faq": extract_faq_data(soup),
         "projects_in_top_cities": extract_operating_cities(soup),
     }
+
+def get_builder_short_description(soup):
+    """Extract builder short description from the soup body."""
+    image_tag = soup.select_one('.builderLogo img')
+    experience_tag = soup.select_one('.builderSortDetail .totalExperience')
+    projects_tag = soup.select_one('.builderSortDetail .totalProject')
+
+    # Default counts
+    ongoing_count = 0
+    past_count = 0
+
+    if projects_tag:
+        project_items = projects_tag.select('.totalProjectLi')
+        
+        for item in project_items:
+            label = item.select_one('span')
+            count = item.select_one('strong')
+            
+            if label and count:
+                text = label.get_text(strip=True).lower()
+                num = int(count.get_text(strip=True))
+                
+                if 'on going' in text:
+                    ongoing_count = num
+                elif 'past' in text:
+                    past_count = num
+
+    total_count = ongoing_count + past_count
+
+    return {
+            "image": {"src": image_tag['src'].rpartition('?')[0] if image_tag else "", "alt": image_tag.get('alt', '') if image_tag else ""},
+            "experience": experience_tag.get_text(strip=True).replace(' Years Experience', '') if experience_tag else "",
+            "projects": {"on_going": ongoing_count, "past": past_count, "total": total_count}
+        }
 
 def get_builder_description(soup):
     """Extract builder description from the soup body."""
@@ -74,7 +110,7 @@ def get_head_office_address(soup):
         return {
             "title": title.get_text(strip=True) if title else None,
             "city": city.get_text(strip=True) if city else None,
-            "location": location.get_text(strip=True) if location else None,
+            "location": location.get_text(strip=True).replace('\r\n\r\n', ' ') if location else None,
             "latitude": address_box.get("data-lat"),
             "longitude": address_box.get("data-long"),
         }

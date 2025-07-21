@@ -45,7 +45,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in tqdm(listings):
+            for item in tqdm(listings[11:13]):
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -66,24 +66,15 @@ class PropertyScraper:
             return []
 
     def _get_or_create_builder_id(self, builder_info):
-        """Get existing builder ID or create new one for unique builders."""
-        if not builder_info or not builder_info.get('name'):
+        """Get existing builder ID or create new one for unique builders using builder_info['id']."""
+        if not builder_info or not builder_info.get('id'):
             return None
-        
-        builder_name = builder_info['name']
-        
-        # Check if builder already exists
-        for builder_id, existing_builder in self.builders_collection.items():
-            if existing_builder.get('name') == builder_name:
-                return builder_id
-        
-        # Create new builder entry
-        builder_id = f"builder_{self.builder_id_counter}"
-        self.builders_collection[builder_id] = {
-            'id': builder_id,
-            **builder_info
-        }
-        self.builder_id_counter += 1
+
+        builder_id = builder_info['id']
+
+        if builder_id not in self.builders_collection:
+            self.builders_collection[builder_id] = builder_info
+
         return builder_id
     
     def _get_or_create_location_id(self, location_insights):
@@ -135,7 +126,8 @@ class PropertyScraper:
         project_spec = self.extract_project_specifications(soup, url)
         amenities = self.extract_amenities(soup, url)
         # Use the class method for builder info instead of the imported function
-        builder_info = self.extract_builder_information(soup, url)
+        builder_info = extract_builder_information(soup, url)
+        builder_info_basic = self.extract_builder_information_basic(soup, url)
         property_spec = self.extract_property_specification(soup, url)
         property_about = self.extract_property_about(soup, url)
         price_insights = self.extract_price_insights(soup, url)
@@ -152,6 +144,16 @@ class PropertyScraper:
         builder_id = self._get_or_create_builder_id(builder_info)
         location_id = self._get_or_create_location_id(detailed_location_insights)
 
+        # Ensure location_id is the first key in the dictionary
+        if location_insights_basic is None:
+            location_insights_basic = {}
+        location_insights_basic = {'location_id': location_id, **location_insights_basic}
+
+        # Ensure builder_id is the first key in the dictionary
+        if builder_info_basic is None:
+            builder_info_basic = {}
+        builder_info_basic = {'builder_id': builder_id, **builder_info_basic}
+
         return {
             'property_id': project_id,
             'name': project_name,
@@ -167,10 +169,10 @@ class PropertyScraper:
             'specifications': property_spec,
             'about': property_about,
             'nearby_landmarks': nearby_landmarks,
-            'location_insights': location_id,  # Reference to location insights
+            'location_insights': location_insights_basic,  # Reference to location insights
             'rera': rera,
             'faq': faq,
-            'builder_info': builder_id,  # Reference to builder info
+            'builder_info': builder_info_basic,  # Reference to builder info
             'all_media': all_media,
         }
     
@@ -204,9 +206,9 @@ class PropertyScraper:
         
         # Return structured output
         return {
-            'project': projects,
-            'builder_info': list(self.builders_collection.values()),
-            'location_insights': list(self.location_insights_collection.values())
+            'projects': projects,
+            'builders': list(self.builders_collection.values()),
+            'locations': list(self.location_insights_collection.values())
         }
 
     def extract_project_specifications(self, soup, url):
@@ -277,7 +279,7 @@ class PropertyScraper:
             print(f"Error scraping amenities from {url}: {e}")
             return {}
 
-    def extract_builder_information(self, soup, url):
+    def extract_builder_information_basic(self, soup, url):
         """Extract builder information from the property's page."""
         try:
             builder_info = {}
@@ -363,7 +365,7 @@ class PropertyScraper:
                     "ininsight_info": safe_get_text(asking_price_info),
                     "data": asking_price_data.decode_contents().replace("\n", "") if asking_price_data else None,
                     "data-median": asking_price_data['data-median'] if asking_price_data and 'data-median' in asking_price_data.attrs else None,
-                    "data-medianLabel": asking_price_data['data-medianLabel'] if asking_price_data and 'data-medianLabel' in asking_price_data.attrs else None,
+                    "data-medianlabel": asking_price_data['data-medianlabel'] if asking_price_data and 'data-medianlabel' in asking_price_data.attrs else None,
                 }
 
             # === RENTAL SUPPLY TABLE ===
@@ -567,20 +569,6 @@ class PropertyScraper:
             print(f"Error in extract_location_description_and_insights: {e}")
             return None
     
-    # def extract_detailed_location_insights(self, know_more_url):
-    #     """Extract detailed location insights using the LocationInsightsScraper."""
-    #     try:
-    #         if not know_more_url:
-    #             return None
-            
-    #         # Use the location insights scraper to get detailed data
-    #         detailed_insights = self.location_insights_scraper.extract_location_insights(know_more_url)
-            
-    #         return detailed_insights
-            
-    #     except Exception as e:
-    #         print(f"Error extracting detailed location insights: {e}")
-    #         return None
     
     def extract_floor_plans(self, soup):
         try:
@@ -614,6 +602,11 @@ class PropertyScraper:
                     title = item.select_one('.floor-plan-title strong')
                     title = title.get_text(strip=True) if title else ''
 
+                    if title:
+                        match = re.search(r'(\d+(?:,\d+)?(?:\.\d+)?)\s*(Sq\.?\s*Ft\.?)', title, re.IGNORECASE)
+                        if match:
+                            area = match.group(1).replace(',', '') +' '+  match.group(2).replace(' ', '')
+
                     attribute = item.select_one('.floor-plan-title span')
                     attribute = attribute.get_text(strip=True) if attribute else ''
 
@@ -632,6 +625,7 @@ class PropertyScraper:
                     # Add the extracted information to the floor plan list
                     floor_plans[category].append({
                         "title": title,
+                        "area": area,
                         "attribute": re.sub('[()]', '', attribute),
                         "2d_src": dd_src.rpartition('?')[0] if '?' in dd_src else dd_src,
                         "alt": alt,

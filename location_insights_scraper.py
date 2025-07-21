@@ -36,6 +36,8 @@ def extract_location_insights(know_more_url):
         insights_data = {
             "url": know_more_url,
             "location_name": location_name,
+            "image" : safe_get_attribute(soup.select_one('.locMap img'), 'src').rpartition('?')[0] if '?' in safe_get_attribute(soup.select_one('.locMap img'), 'src') else safe_get_attribute(soup.select_one('.locMap img'), 'src'),
+            "alt" : safe_get_attribute(soup.select_one('.locMap img'), 'alt'),
             "rank": Locality_info.get("rank"),
             "average_sale_price": Locality_info.get("average_sale_price"),
             "average_rental": Locality_info.get("average_rental"),
@@ -359,7 +361,7 @@ def extract_price_insights_for_sector(soup, url):
         # === NEARBY LOCATIONS ===
         nearby_section = insights_section.select_one('.comparableProjects')
         nearby_info = nearby_section.select_one('.npPriceInsightInfoBox') if nearby_section else None
-        nearby_data_items = nearby_section.select('.comparableProjectsData .comparableProjectsItem') if nearby_section else []
+        nearby_data_items = nearby_section.select('.comparableProjectsData div') if nearby_section else []
 
         nearby_data = []
 
