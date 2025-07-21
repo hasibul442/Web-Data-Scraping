@@ -66,7 +66,7 @@ def replace_and_download_project(project):
         url = project["thumbnail_image"]
         filename = os.path.basename(urlparse(url).path)
         filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-        rel_path = get_asset_relative_path(project_folder, "Thumbnail", filename)
+        rel_path = get_asset_relative_path(project_folder, "thumbnail", filename)
         full_path = get_full_local_path(rel_path)
         if download_if_needed(url, full_path):
             project["thumbnail_image"] = rel_path
@@ -90,7 +90,7 @@ def replace_and_download_project(project):
                 url = item["2d_src"]
                 filename = os.path.basename(urlparse(url).path)
                 filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-                rel_path = get_asset_relative_path(project_folder, "Floor_Plan_Image", plan_type, filename)
+                rel_path = get_asset_relative_path(project_folder, "floor_plan_image", plan_type, filename)
                 full_path = get_full_local_path(rel_path)
                 if download_if_needed(url, full_path):
                     item["2d_src"] = rel_path
@@ -103,7 +103,7 @@ def replace_and_download_project(project):
                 url = img["src"]
                 filename = os.path.basename(urlparse(url).path)
                 filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-                rel_path = get_asset_relative_path(project_folder, "Images", section, filename)
+                rel_path = get_asset_relative_path(project_folder, "images", section, filename)
                 full_path = get_full_local_path(rel_path)
                 if download_if_needed(url, full_path):
                     img["src"] = rel_path
@@ -115,10 +115,34 @@ def replace_and_download_project(project):
             url = vid["src"]
             filename = os.path.basename(urlparse(url).path)
             filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-            rel_path = get_asset_relative_path(project_folder, "Videos", filename)
+            rel_path = get_asset_relative_path(project_folder, "videos", filename)
             full_path = get_full_local_path(rel_path)
             if download_if_needed(url, full_path):
                 vid["src"] = rel_path
+
+    # === Builder Info Assets ===
+    builder_info = project.get("builder_info", {})
+    if "image" in builder_info and builder_info["image"].startswith("http"):
+        url = builder_info["image"]
+        filename = os.path.basename(urlparse(url).path)
+        filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
+        rel_path = get_asset_relative_path(project_folder, "builder_info", "logo", filename)
+        full_path = get_full_local_path(rel_path)
+        if download_if_needed(url, full_path):
+            builder_info["image"] = rel_path
+
+    # === Location Insights Assets ===
+    location_insights = project.get("location_insights", {})
+    if "insights" in location_insights:
+        for insight in location_insights["insights"]:
+            if "icon" in insight and insight["icon"].startswith("http"):
+                url = insight["icon"]
+                filename = os.path.basename(urlparse(url).path)
+                filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
+                rel_path = get_asset_relative_path(project_folder, "location_insights", "icons", filename)
+                full_path = get_full_local_path(rel_path)
+                if download_if_needed(url, full_path):
+                    insight["icon"] = rel_path
 
     return project
 
