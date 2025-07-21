@@ -127,10 +127,7 @@ class PropertyScraper:
         amenities = self.extract_amenities(soup, url)
         # Use the class method for builder info instead of the imported function
         builder_info = extract_builder_information(soup, url)
-<<<<<<< HEAD
         builder_info_basic = self.extract_builder_information_basic(soup, url)
-=======
->>>>>>> 4275659df32e32f7eeb64a42e3382a422186a066
         property_spec = self.extract_property_specification(soup, url)
         property_about = self.extract_property_about(soup, url)
         price_insights = self.extract_price_insights(soup, url)
@@ -175,11 +172,7 @@ class PropertyScraper:
             'location_insights': location_insights_basic,  # Reference to location insights
             'rera': rera,
             'faq': faq,
-<<<<<<< HEAD
             'builder_info': builder_info_basic,  # Reference to builder info
-=======
-            'builder_info': builder_info,  # Reference to builder info
->>>>>>> 4275659df32e32f7eeb64a42e3382a422186a066
             'all_media': all_media,
         }
     
@@ -286,39 +279,32 @@ class PropertyScraper:
             print(f"Error scraping amenities from {url}: {e}")
             return {}
 
-<<<<<<< HEAD
     def extract_builder_information_basic(self, soup, url):
         """Extract builder information from the property's page."""
         try:
             builder_info = {}
-=======
-    # def extract_builder_information(self, soup, url):
-    #     """Extract builder information from the property's page."""
-    #     try:
-    #         builder_info = {}
->>>>>>> 4275659df32e32f7eeb64a42e3382a422186a066
 
-    #         # Extract builder name
-    #         builder_name_elem = soup.select_one('section.about-builder-section#aboutBuilder')
+            # Extract builder name
+            builder_name_elem = soup.select_one('section.about-builder-section#aboutBuilder')
             
-    #         builder_name = safe_get_text(builder_name_elem.select_one('h2 a')) if builder_name_elem else None
-    #         builder_image = builder_name_elem.select_one('figure img')
-    #         image = builder_image.get('data-src') or builder_image.get('src') if builder_image else None
-    #         builder_total_projects = safe_get_text(builder_name_elem.select_one('.total-project-list li:nth-of-type(1) strong'))
-    #         builder_experience = safe_get_text(builder_name_elem.select_one('.total-project-list li:nth-of-type(2) strong'))
-    #         builder_description = safe_get_text(builder_name_elem.select_one('.content-box p'))
+            builder_name = safe_get_text(builder_name_elem.select_one('h2 a')) if builder_name_elem else None
+            builder_image = builder_name_elem.select_one('figure img')
+            image = builder_image.get('data-src') or builder_image.get('src') if builder_image else None
+            builder_total_projects = safe_get_text(builder_name_elem.select_one('.total-project-list li:nth-of-type(1) strong'))
+            builder_experience = safe_get_text(builder_name_elem.select_one('.total-project-list li:nth-of-type(2) strong'))
+            builder_description = safe_get_text(builder_name_elem.select_one('.content-box p'))
 
-    #         builder_info['name'] = builder_name.strip('About - ')
-    #         builder_info['image'] = image.rpartition('?')[0] if '?' in image else image
-    #         builder_info['total_projects'] = builder_total_projects
-    #         builder_info['experience'] = builder_experience
-    #         builder_info['description'] = builder_description
+            builder_info['name'] = builder_name.strip('About - ')
+            builder_info['image'] = image.rpartition('?')[0] if '?' in image else image
+            builder_info['total_projects'] = builder_total_projects
+            builder_info['experience'] = builder_experience
+            builder_info['description'] = builder_description
 
-    #         return builder_info
+            return builder_info
 
-    #     except Exception as e:
-    #         print(f"Error scraping builder information from {url}: {e}")
-    #         return {}
+        except Exception as e:
+            print(f"Error scraping builder information from {url}: {e}")
+            return {}
         
     def extract_property_specification(self, soup, url):
         """Extract property specifications from the property's page."""
