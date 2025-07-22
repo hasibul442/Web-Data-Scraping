@@ -3,21 +3,32 @@
 import requests
 import time
 from bs4 import BeautifulSoup
-from config import HEADERS, REQUEST_TIMEOUT
+from config import HEADERS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
 from utils import safe_get_text, safe_get_attribute
 import re
     
 
 
 def get_soup(url):
-    """Get BeautifulSoup object for the given URL."""
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-        return BeautifulSoup(response.text, 'html.parser')
-    except Exception as e:
-        print(f"Error fetching URL {url}: {e}")
-        return None
+    """Get BeautifulSoup object for the given URL with retry logic."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                return BeautifulSoup(response.text, 'html.parser')
+            else:
+                print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code} | Attempt {attempt + 1}/{MAX_RETRIES}")
+        except (requests.RequestException, requests.ConnectTimeout, requests.ReadTimeout) as e:
+            print(f"[EXCEPTION] While fetching {url} (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+            if attempt < MAX_RETRIES - 1:
+                print(f"[RETRY] Waiting {RETRY_DELAY} seconds before retry...")
+                time.sleep(RETRY_DELAY)
+        except Exception as e:
+            print(f"[UNEXPECTED ERROR] While fetching {url}: {e}")
+            break
+            
+    print(f"[FAILED] All {MAX_RETRIES} attempts failed for URL: {url}")
+    return None
 
 def extract_location_insights(know_more_url):
     """Extract comprehensive location insights from the sector overview page."""

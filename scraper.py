@@ -5,7 +5,7 @@ import traceback
 import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-from config import HEADERS, BASE_URL, REQUEST_TIMEOUT
+from config import HEADERS, BASE_URL, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
 from media_extractor import extract_media_by_sub_tab
 from builder_information import extract_builder_information
 from utils import safe_get_text, safe_get_attribute
@@ -26,6 +26,16 @@ class PropertyScraper:
         self.builder_id_counter = 1
         self.location_id_counter = 1
     
+    def _validate_soup(self, soup, method_name, url=None):
+        """Helper method to validate soup and log appropriate errors."""
+        if soup is None:
+            error_msg = f"[ERROR] No soup available for {method_name}"
+            if url:
+                error_msg += f" from {url}"
+            print(error_msg)
+            return False
+        return True
+    
     def scrape_page(self, page):
         """Scrape a single page and return property data."""
         try:
@@ -45,7 +55,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item in tqdm(listings[6:8]):
+            for item in tqdm(listings):
                 try:
                     property_data = self._extract_property_data(item)
                     if property_data:
@@ -123,6 +133,12 @@ class PropertyScraper:
             return None
 
         soup = self.get_soup(url)  # Call only once per page
+        
+        # If soup is None (failed to fetch page), skip this property
+        if soup is None:
+            print(f"[WARNING] Skipping property {project_name} due to failed page fetch: {url}")
+            return None
+            
         project_spec = self.extract_project_specifications(soup, url)
         amenities = self.extract_amenities(soup, url)
         # Use the class method for builder info instead of the imported function
@@ -177,16 +193,27 @@ class PropertyScraper:
         }
     
     def get_soup(self, url):
-        """Reusable method to perform GET request and return parsed HTML soup."""
-        try:
-            response = requests.get(url, headers=self.headers, timeout=self.timeout)
-            if response.status_code != 200:
-                print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code}")
-                return None
-            return BeautifulSoup(response.text, 'html.parser')
-        except Exception as e:
-            print(f"[EXCEPTION] While fetching {url}: {e}")
-            return None
+        """Reusable method to perform GET request and return parsed HTML soup with retry logic."""
+        import time
+        
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = requests.get(url, headers=self.headers, timeout=self.timeout)
+                if response.status_code == 200:
+                    return BeautifulSoup(response.text, 'html.parser')
+                else:
+                    print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code} | Attempt {attempt + 1}/{MAX_RETRIES}")
+            except (requests.RequestException, requests.ConnectTimeout, requests.ReadTimeout) as e:
+                print(f"[EXCEPTION] While fetching {url} (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+                if attempt < MAX_RETRIES - 1:
+                    print(f"[RETRY] Waiting {RETRY_DELAY} seconds before retry...")
+                    time.sleep(RETRY_DELAY)
+            except Exception as e:
+                print(f"[UNEXPECTED ERROR] While fetching {url}: {e}")
+                break
+                
+        print(f"[FAILED] All {MAX_RETRIES} attempts failed for URL: {url}")
+        return None
         
     def scrape_multiple_pages(self, pages, max_workers=10):
         """Scrape multiple pages concurrently."""
@@ -213,6 +240,9 @@ class PropertyScraper:
 
     def extract_project_specifications(self, soup, url):
         """Scrape the details from a property's individual page."""
+        if not self._validate_soup(soup, "extract_project_specifications", url):
+            return {}
+            
         try:
             # Get status box data as array
             overview = {}
@@ -241,6 +271,9 @@ class PropertyScraper:
     
     def extract_amenities(self, soup, url):
         """Extract grouped amenities with name and image from the property's page."""
+        if not self._validate_soup(soup, "extract_amenities", url):
+            return {}
+            
         try:
             accordion_items = soup.select('.amenities-modal .accordion-item')
 
@@ -281,6 +314,9 @@ class PropertyScraper:
 
     def extract_builder_information_basic(self, soup, url):
         """Extract builder information from the property's page."""
+        if not self._validate_soup(soup, "extract_builder_information_basic", url):
+            return {}
+            
         try:
             builder_info = {}
 

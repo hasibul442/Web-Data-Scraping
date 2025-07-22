@@ -1,25 +1,37 @@
 import requests
 from bs4 import BeautifulSoup
+import time
 
-# Set headers and timeout globally (or customize as needed)
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36'
-}
-TIMEOUT = 10
+# Import configuration from config.py
+from config import HEADERS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
 
 def get_soup(url):
-    """Fetch and parse the HTML content from a URL."""
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        if response.status_code != 200:
-            print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code}")
-            return None
-        return BeautifulSoup(response.text, 'html.parser')
-    except Exception as e:
-        print(f"[EXCEPTION] While fetching {url}: {e}")
-        return None
+    """Fetch and parse the HTML content from a URL with retry logic."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                return BeautifulSoup(response.text, 'html.parser')
+            else:
+                print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code} | Attempt {attempt + 1}/{MAX_RETRIES}")
+        except (requests.RequestException, requests.ConnectTimeout, requests.ReadTimeout) as e:
+            print(f"[EXCEPTION] While fetching {url} (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+            if attempt < MAX_RETRIES - 1:
+                print(f"[RETRY] Waiting {RETRY_DELAY} seconds before retry...")
+                time.sleep(RETRY_DELAY)
+        except Exception as e:
+            print(f"[UNEXPECTED ERROR] While fetching {url}: {e}")
+            break
+            
+    print(f"[FAILED] All {MAX_RETRIES} attempts failed for URL: {url}")
+    return None
 
 def extract_builder_information(soupbody, url):
+    # Check if soup is None first
+    if soupbody is None:
+        print(f"[ERROR] No soup provided for builder information extraction from {url}")
+        return {}
+        
     heading_tag = soupbody.select_one('section.about-builder-section#aboutBuilder h2')
     if not heading_tag:
         print(f"[ERROR] Failed to find builder information section in {url}")
