@@ -491,12 +491,16 @@ class PropertyScraper:
             # Insights
             insights = []
             for card in section.select(".key-insight-card"):
-                icon = card.select_one("figure img")['src'] if card.select_one("figure img") else None
+                img_element = card.select_one("figure img")
+                icon = img_element.get('src') if img_element else None
                 text = card.select_one("p").get_text(separator=" ", strip=True) if card.select_one("p") else None
-                insights.append({
-                    "icon": "https://www.squareyards.com/" + icon.lstrip("/") if "/assets" in icon else "https://www.squareyards.com/" + icon,
-                    "text": text
-                })
+                
+                if icon and text:
+                    icon_url = "https://www.squareyards.com/" + icon.lstrip("/") if "/assets" in icon else "https://www.squareyards.com/" + icon
+                    insights.append({
+                        "icon": icon_url,
+                        "text": text
+                    })
 
             # Know more URL
             know_more_tag = section.select_one(".keyinside-btn-box a")

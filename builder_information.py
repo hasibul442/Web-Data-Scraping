@@ -94,9 +94,20 @@ def get_builder_short_description(soup):
                     past_count = num
 
     total_count = ongoing_count + past_count
+    
+    # Handle image source safely
+    image_src = ""
+    image_alt = ""
+    if image_tag:
+        src = image_tag.get('src', '')
+        if src and '?' in src:
+            image_src = src.rpartition('?')[0]
+        else:
+            image_src = src
+        image_alt = image_tag.get('alt', '')
 
     return {
-            "image": {"src": image_tag['src'].rpartition('?')[0] if image_tag else "", "alt": image_tag.get('alt', '') if image_tag else ""},
+            "image": {"src": image_src, "alt": image_alt},
             "experience": experience_tag.get_text(strip=True).replace(' Years Experience', '') if experience_tag else "",
             "projects": {"on_going": ongoing_count, "past": past_count, "total": total_count}
         }

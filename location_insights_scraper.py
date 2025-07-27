@@ -44,11 +44,19 @@ def extract_location_insights(know_more_url):
         Locality_info = extract_rank_price(soup)
         property_count = extract_property_counts(soup)
         
+        # Extract image URL safely
+        image_element = soup.select_one('.locMap img')
+        image_src = safe_get_attribute(image_element, 'src')
+        if image_src and '?' in image_src:
+            image_url = image_src.rpartition('?')[0]
+        else:
+            image_url = image_src
+        
         insights_data = {
             "url": know_more_url,
             "location_name": location_name,
-            "image" : safe_get_attribute(soup.select_one('.locMap img'), 'src').rpartition('?')[0] if '?' in safe_get_attribute(soup.select_one('.locMap img'), 'src') else safe_get_attribute(soup.select_one('.locMap img'), 'src'),
-            "alt" : safe_get_attribute(soup.select_one('.locMap img'), 'alt'),
+            "image": image_url,
+            "alt": safe_get_attribute(image_element, 'alt'),
             "rank": Locality_info.get("rank"),
             "average_sale_price": Locality_info.get("average_sale_price"),
             "average_rental": Locality_info.get("average_rental"),
