@@ -1,0 +1,35 @@
+# .github/workflows/pr-commit-messages.yml
+name: Add Commit Titles to PR Description
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  update-pr-description:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get all commits in the PR
+        id: get_commits
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commits = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            const messages = commits.data.map(commit => `- ${commit.commit.message.split('\n')[0]}`).join('\n');
+            const body = `### 📝 Commit Summary:\n${messages}`;
+
+            const existingBody = context.payload.pull_request.body || '';
+            const newBody = body + '\n\n' + existingBody;
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              body: newBody,
+            });
