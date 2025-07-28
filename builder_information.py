@@ -1,25 +1,37 @@
 import requests
 from bs4 import BeautifulSoup
+import time
 
-# Set headers and timeout globally (or customize as needed)
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36'
-}
-TIMEOUT = 10
+# Import configuration from config.py
+from config import HEADERS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
 
 def get_soup(url):
-    """Fetch and parse the HTML content from a URL."""
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        if response.status_code != 200:
-            print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code}")
-            return None
-        return BeautifulSoup(response.text, 'html.parser')
-    except Exception as e:
-        print(f"[EXCEPTION] While fetching {url}: {e}")
-        return None
+    """Fetch and parse the HTML content from a URL with retry logic."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                return BeautifulSoup(response.text, 'html.parser')
+            else:
+                print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code} | Attempt {attempt + 1}/{MAX_RETRIES}")
+        except (requests.RequestException, requests.ConnectTimeout, requests.ReadTimeout) as e:
+            print(f"[EXCEPTION] While fetching {url} (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+            if attempt < MAX_RETRIES - 1:
+                print(f"[RETRY] Waiting {RETRY_DELAY} seconds before retry...")
+                time.sleep(RETRY_DELAY)
+        except Exception as e:
+            print(f"[UNEXPECTED ERROR] While fetching {url}: {e}")
+            break
+            
+    print(f"[FAILED] All {MAX_RETRIES} attempts failed for URL: {url}")
+    return None
 
 def extract_builder_information(soupbody, url):
+    # Check if soup is None first
+    if soupbody is None:
+        print(f"[ERROR] No soup provided for builder information extraction from {url}")
+        return {}
+        
     heading_tag = soupbody.select_one('section.about-builder-section#aboutBuilder h2')
     if not heading_tag:
         print(f"[ERROR] Failed to find builder information section in {url}")
@@ -36,22 +48,69 @@ def extract_builder_information(soupbody, url):
     if not soup:
         return {}
 
-    # data = get_head_office_address(soup)
-    # print(f"[INFO] Extracted head office address: {data}")
-    # exit()
     
     return {
+        "id" : builder_page_url.split('/')[-2],
+        "name": heading_tag.get_text(strip=True).replace('About - ', '') if heading_tag else "No Name Found",
+        "image": get_builder_short_description(soup).get("image", {}),
+        "experience": get_builder_short_description(soup).get("experience", ""),
+        "projects": get_builder_short_description(soup).get("projects", {}),
         "overview": get_builder_description(soup),
         "head_office_address": get_head_office_address(soup),
         "branch_office_address": get_branch_offices(soup),
         "company_size": get_company_size(soup),
         "management_team": get_management_team(soup),
-        "key_service_and_specialities": get_key_service_and_specialities(soup),
-        "awards_and_recognition": get_awards_and_recognition(soup),
+        "key_service_and_specialities": get_key_service_and_specialities(soup).replace('\n', ' ').strip() if get_key_service_and_specialities(soup) else None,
+        "awards_and_recognition": get_awards_and_recognition(soup).replace('\n', ' ').strip() if get_awards_and_recognition(soup) else None,
         "customer_care_number" : get_customer_care_number(soup),
         "faq": extract_faq_data(soup),
         "projects_in_top_cities": extract_operating_cities(soup),
     }
+
+def get_builder_short_description(soup):
+    """Extract builder short description from the soup body."""
+    image_tag = soup.select_one('.builderLogo img')
+    experience_tag = soup.select_one('.builderSortDetail .totalExperience')
+    projects_tag = soup.select_one('.builderSortDetail .totalProject')
+
+    # Default counts
+    ongoing_count = 0
+    past_count = 0
+
+    if projects_tag:
+        project_items = projects_tag.select('.totalProjectLi')
+        
+        for item in project_items:
+            label = item.select_one('span')
+            count = item.select_one('strong')
+            
+            if label and count:
+                text = label.get_text(strip=True).lower()
+                num = int(count.get_text(strip=True))
+                
+                if 'on going' in text:
+                    ongoing_count = num
+                elif 'past' in text:
+                    past_count = num
+
+    total_count = ongoing_count + past_count
+    
+    # Handle image source safely
+    image_src = ""
+    image_alt = ""
+    if image_tag:
+        src = image_tag.get('src', '')
+        if src and '?' in src:
+            image_src = src.rpartition('?')[0]
+        else:
+            image_src = src
+        image_alt = image_tag.get('alt', '')
+
+    return {
+            "image": {"src": image_src, "alt": image_alt},
+            "experience": experience_tag.get_text(strip=True).replace(' Years Experience', '') if experience_tag else "",
+            "projects": {"on_going": ongoing_count, "past": past_count, "total": total_count}
+        }
 
 def get_builder_description(soup):
     """Extract builder description from the soup body."""
@@ -74,7 +133,7 @@ def get_head_office_address(soup):
         return {
             "title": title.get_text(strip=True) if title else None,
             "city": city.get_text(strip=True) if city else None,
-            "location": location.get_text(strip=True) if location else None,
+            "location": location.get_text(strip=True).replace('\r\n\r\n', ' ') if location else None,
             "latitude": address_box.get("data-lat"),
             "longitude": address_box.get("data-long"),
         }

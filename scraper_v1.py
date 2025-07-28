@@ -5,15 +5,13 @@ import traceback
 import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-from config import HEADERS, BASE_URL, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from config import HEADERS, BASE_URL, REQUEST_TIMEOUT
 from media_extractor import extract_media_by_sub_tab
 from builder_information import extract_builder_information
 from utils import safe_get_text, safe_get_attribute
 from location_insights_scraper import extract_location_insights
 import re
 from tqdm import tqdm
-import json
-import os
 
 class PropertyScraper:
     """A class to scrape property listings from SquareYards."""
@@ -22,73 +20,6 @@ class PropertyScraper:
         self.headers = headers or HEADERS
         self.base_url = base_url or BASE_URL
         self.timeout = timeout or REQUEST_TIMEOUT
-        # Collections for unique builders and location insights
-        self.builders_collection = {}
-        self.location_insights_collection = {}
-        self.builder_id_counter = 1
-        self.location_id_counter = 1
-        # Failed items tracking
-        self.failed_items = []
-        self.failed_items_file = "output/failed_items.json"
-    
-    def _validate_soup(self, soup, method_name, url=None):
-        """Helper method to validate soup and log appropriate errors."""
-        if soup is None:
-            error_msg = f"[ERROR] No soup available for {method_name}"
-            if url:
-                error_msg += f" from {url}"
-            print(error_msg)
-            return False
-        return True
-    
-    def _track_failed_item(self, item, page_number, item_index, error_reason, url=None):
-        """Track failed items for later retry."""
-        failed_item = {
-            "page_number": page_number,
-            "item_index": item_index,
-            "project_id": safe_get_attribute(item.select_one('.npFavBtn'), 'data-projectid'),
-            "project_name": safe_get_text(item.select_one('.npProjectName a strong')),
-            "url": url or safe_get_attribute(item.select_one('.npProjectName a'), 'href'),
-            "error_reason": error_reason,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "raw_item_html": str(item)  # Store raw HTML for retry
-        }
-        self.failed_items.append(failed_item)
-        print(f"[FAILED ITEM] Tracked: {failed_item['project_name']} - {error_reason}")
-    
-    def _save_failed_items(self):
-        """Save failed items to JSON file."""
-        if self.failed_items:
-            os.makedirs(os.path.dirname(self.failed_items_file), exist_ok=True)
-            
-            # Load existing failed items if file exists
-            existing_failed = []
-            if os.path.exists(self.failed_items_file):
-                try:
-                    with open(self.failed_items_file, 'r', encoding='utf-8') as f:
-                        existing_failed = json.load(f)
-                except Exception as e:
-                    print(f"Warning: Could not load existing failed items: {e}")
-            
-            # Merge with new failed items
-            all_failed = existing_failed + self.failed_items
-            
-            # Remove duplicates based on project_id and url
-            unique_failed = []
-            seen = set()
-            for item in all_failed:
-                key = (item.get('project_id'), item.get('url'))
-                if key not in seen:
-                    unique_failed.append(item)
-                    seen.add(key)
-            
-            with open(self.failed_items_file, 'w', encoding='utf-8') as f:
-                json.dump(unique_failed, f, indent=2, ensure_ascii=False)
-            
-            print(f"[FAILED ITEMS] Saved {len(self.failed_items)} new failed items to {self.failed_items_file}")
-            print(f"[FAILED ITEMS] Total unique failed items: {len(unique_failed)}")
-        else:
-            print("[FAILED ITEMS] No failed items to save")
     
     def scrape_page(self, page):
         """Scrape a single page and return property data."""
@@ -109,16 +40,14 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item_index, item in enumerate(tqdm(listings)):
+            for item in tqdm(listings[9:12]):
                 try:
-                    property_data = self._extract_property_data(item, page, item_index)
+                    property_data = self._extract_property_data(item)
                     if property_data:
                         page_data.append(property_data)
                 except Exception as e:
-                    error_reason = f"Error parsing property: {str(e)}"
-                    print(f"Error parsing one property on page {page} (index {item_index}): {e}")
+                    print(f"Error parsing one property on page {page}: {e}")
                     traceback.print_exc()
-                    self._track_failed_item(item, page, item_index, error_reason)
                     continue
                     
             print(f"Found {len(page_data)} properties on page {page}")
@@ -131,41 +60,7 @@ class PropertyScraper:
             print(f"Error scraping page {page}: {e}")
             return []
 
-    def _get_or_create_builder_id(self, builder_info):
-        """Get existing builder ID or create new one for unique builders using builder_info['id']."""
-        if not builder_info or not builder_info.get('id'):
-            return None
-
-        builder_id = builder_info['id']
-
-        if builder_id not in self.builders_collection:
-            self.builders_collection[builder_id] = builder_info
-
-        return builder_id
-    
-    def _get_or_create_location_id(self, location_insights):
-        """Get existing location ID or create new one for unique locations."""
-        if not location_insights or not location_insights.get('url'):
-            return None
-        
-        location_url = location_insights['url']
-        
-        # Check if location already exists
-        for location_id, existing_location in self.location_insights_collection.items():
-            if existing_location.get('url') == location_url:
-                return location_id
-        
-        # Create new location entry
-        location_id = f"location_{self.location_id_counter}"
-        self.location_insights_collection[location_id] = {
-            'id': location_id,
-            **location_insights
-        }
-        self.location_id_counter += 1
-        return location_id
-        
-
-    def _extract_property_data(self, item, page_number=None, item_index=None):
+    def _extract_property_data(self, item):
         """Extract property data from a listing item."""
         # Get basic elements
         fav_btn = item.select_one('.npFavBtn')
@@ -186,26 +81,13 @@ class PropertyScraper:
 
         # Skip if essential data is missing
         if not project_id or not project_name:
-            if page_number is not None and item_index is not None:
-                self._track_failed_item(item, page_number, item_index, 
-                                      "Missing essential data (project_id or project_name)", url)
             return None
 
         soup = self.get_soup(url)  # Call only once per page
-        
-        # If soup is None (failed to fetch page), track and skip this property
-        if soup is None:
-            error_reason = f"Failed to fetch property page: {url}"
-            print(f"[WARNING] Skipping property {project_name} due to failed page fetch: {url}")
-            if page_number is not None and item_index is not None:
-                self._track_failed_item(item, page_number, item_index, error_reason, url)
-            return None
-            
         project_spec = self.extract_project_specifications(soup, url)
         amenities = self.extract_amenities(soup, url)
-        # Use the class method for builder info instead of the imported function
         builder_info = extract_builder_information(soup, url)
-        builder_info_basic = self.extract_builder_information_basic(soup, url)
+        # builder_info = self.extract_builder_information(soup, url)
         property_spec = self.extract_property_specification(soup, url)
         property_about = self.extract_property_about(soup, url)
         price_insights = self.extract_price_insights(soup, url)
@@ -215,99 +97,67 @@ class PropertyScraper:
         rera = self.extract_rera_details(soup)
         floor_plan = self.extract_floor_plans(soup)
         all_media = extract_media_by_sub_tab(project_id, url)
-        location_insights_basic = self.extract_location_description_and_insights(soup)
-        detailed_location_insights = extract_location_insights(location_insights_basic["know_more_url"]) if location_insights_basic and location_insights_basic.get("know_more_url") else None
-
-        # Get or create IDs for builder and location
-        builder_id = self._get_or_create_builder_id(builder_info)
-        location_id = self._get_or_create_location_id(detailed_location_insights)
-
-        # Ensure location_id is the first key in the dictionary
-        if location_insights_basic is None:
-            location_insights_basic = {}
-        location_insights_basic = {'location_id': location_id, **location_insights_basic}
-
-        # Ensure builder_id is the first key in the dictionary
-        if builder_info_basic is None:
-            builder_info_basic = {}
-        builder_info_basic = {'builder_id': builder_id, **builder_info_basic}
+        location_insights = self.extract_location_description_and_insights(soup)
+        detailed_location_insights = extract_location_insights(location_insights["know_more_url"])
 
         return {
             'property_id': project_id,
-            'name': project_name,
-            'location': location,
-            'thumbnail_image': "https://static.squareyards.com/" + image if image else None,
-            'price': price_range,
-            'price_insights': price_insights,
-            'status': status,
-            "information": project_spec,
-            'price_list': price_list,
-            'floor_plans': floor_plan,
-            'amenities': amenities,
-            'specifications': property_spec,
-            'about': property_about,
-            'nearby_landmarks': nearby_landmarks,
-            'location_insights': location_insights_basic,  # Reference to location insights
-            'rera': rera,
+            'project': {
+                'name': project_name,
+                'location': location,
+                'thumbnail_image': "https://static.squareyards.com/" + image if image else None,
+                'price': price_range,
+                'price_insights': price_insights,
+                'status': status,
+                "information": project_spec,
+                'price_list': price_list,
+                'floor_plans': floor_plan,
+                'amenities': amenities,
+                'specifications': property_spec,
+                'about': property_about,
+                'nearby_landmarks': nearby_landmarks,
+                # 'location_insights': location_insights,
+                'location_insights': detailed_location_insights,
+                'rera': rera,
+            },
+            'builder_info': builder_info,
             'faq': faq,
-            'builder_info': builder_info_basic,  # Reference to builder info
             'all_media': all_media,
+            # 'detailed_location_insights': detailed_location_insights
         }
     
     def get_soup(self, url):
-        """Reusable method to perform GET request and return parsed HTML soup with retry logic."""
-        import time
-        
-        for attempt in range(MAX_RETRIES):
-            try:
-                response = requests.get(url, headers=self.headers, timeout=self.timeout)
-                if response.status_code == 200:
-                    return BeautifulSoup(response.text, 'html.parser')
-                else:
-                    print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code} | Attempt {attempt + 1}/{MAX_RETRIES}")
-            except (requests.RequestException, requests.ConnectTimeout, requests.ReadTimeout) as e:
-                print(f"[EXCEPTION] While fetching {url} (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-                if attempt < MAX_RETRIES - 1:
-                    print(f"[RETRY] Waiting {RETRY_DELAY} seconds before retry...")
-                    time.sleep(RETRY_DELAY)
-            except Exception as e:
-                print(f"[UNEXPECTED ERROR] While fetching {url}: {e}")
-                break
-                
-        print(f"[FAILED] All {MAX_RETRIES} attempts failed for URL: {url}")
-        return None
+        """Reusable method to perform GET request and return parsed HTML soup."""
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code != 200:
+                print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code}")
+                return None
+            return BeautifulSoup(response.text, 'html.parser')
+        except Exception as e:
+            print(f"[EXCEPTION] While fetching {url}: {e}")
+            return None
         
     def scrape_multiple_pages(self, pages, max_workers=10):
         """Scrape multiple pages concurrently."""
         if not pages:
-            return {}
+            return []
             
         print(f"Starting to scrape {len(pages)} pages with {max_workers} workers")
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             all_pages_data = list(executor.map(self.scrape_page, pages))
         
-        # Flatten the results to get all projects
-        projects = []
+        # Flatten the results
+        results = []
         for page_data in all_pages_data:
             if page_data:
-                projects.extend(page_data)
+                results.extend(page_data)
         
-        # Save failed items to JSON file
-        self._save_failed_items()
-        
-        # Return structured output
-        return {
-            'projects': projects,
-            'builders': list(self.builders_collection.values()),
-            'locations': list(self.location_insights_collection.values())
-        }
+        return results
 
     def extract_project_specifications(self, soup, url):
         """Scrape the details from a property's individual page."""
-        if not self._validate_soup(soup, "extract_project_specifications", url):
-            return {}
-            
         try:
             # Get status box data as array
             overview = {}
@@ -336,9 +186,6 @@ class PropertyScraper:
     
     def extract_amenities(self, soup, url):
         """Extract grouped amenities with name and image from the property's page."""
-        if not self._validate_soup(soup, "extract_amenities", url):
-            return {}
-            
         try:
             accordion_items = soup.select('.amenities-modal .accordion-item')
 
@@ -377,11 +224,8 @@ class PropertyScraper:
             print(f"Error scraping amenities from {url}: {e}")
             return {}
 
-    def extract_builder_information_basic(self, soup, url):
+    def extract_builder_information(self, soup, url):
         """Extract builder information from the property's page."""
-        if not self._validate_soup(soup, "extract_builder_information_basic", url):
-            return {}
-            
         try:
             builder_info = {}
 
@@ -450,16 +294,12 @@ class PropertyScraper:
         """Extract rental and comparable pricing insights from the property's page."""
         try:
             insights_section = soup.select_one('section.price-insight-section#dataPriceInsights')
-            
+
             insights_data = {
                 "rental_supply": [],
                 "comparable_projects": [],
                 "asking_price": []
             }
-            
-            # Check if insights section exists
-            if not insights_section:
-                return insights_data
 
             # === ASKING PRICE ===
             asking_price_info = insights_section.select_one('article.market-supply .price-insight-info-box')
@@ -470,7 +310,7 @@ class PropertyScraper:
                     "ininsight_info": safe_get_text(asking_price_info),
                     "data": asking_price_data.decode_contents().replace("\n", "") if asking_price_data else None,
                     "data-median": asking_price_data['data-median'] if asking_price_data and 'data-median' in asking_price_data.attrs else None,
-                    "data-medianlabel": asking_price_data['data-medianlabel'] if asking_price_data and 'data-medianlabel' in asking_price_data.attrs else None,
+                    "data-medianLabel": asking_price_data['data-medianLabel'] if asking_price_data and 'data-medianLabel' in asking_price_data.attrs else None,
                 }
 
             # === RENTAL SUPPLY TABLE ===
@@ -678,6 +518,20 @@ class PropertyScraper:
             print(f"Error in extract_location_description_and_insights: {e}")
             return None
     
+    # def extract_detailed_location_insights(self, know_more_url):
+    #     """Extract detailed location insights using the LocationInsightsScraper."""
+    #     try:
+    #         if not know_more_url:
+    #             return None
+            
+    #         # Use the location insights scraper to get detailed data
+    #         detailed_insights = self.location_insights_scraper.extract_location_insights(know_more_url)
+            
+    #         return detailed_insights
+            
+    #     except Exception as e:
+    #         print(f"Error extracting detailed location insights: {e}")
+    #         return None
     
     def extract_floor_plans(self, soup):
         try:
@@ -711,11 +565,6 @@ class PropertyScraper:
                     title = item.select_one('.floor-plan-title strong')
                     title = title.get_text(strip=True) if title else ''
 
-                    if title:
-                        match = re.search(r'(\d+(?:,\d+)?(?:\.\d+)?)\s*(Sq\.?\s*Ft\.?)', title, re.IGNORECASE)
-                        if match:
-                            area = match.group(1).replace(',', '') +' '+  match.group(2).replace(' ', '')
-
                     attribute = item.select_one('.floor-plan-title span')
                     attribute = attribute.get_text(strip=True) if attribute else ''
 
@@ -734,7 +583,6 @@ class PropertyScraper:
                     # Add the extracted information to the floor plan list
                     floor_plans[category].append({
                         "title": title,
-                        "area": area,
                         "attribute": re.sub('[()]', '', attribute),
                         "2d_src": dd_src.rpartition('?')[0] if '?' in dd_src else dd_src,
                         "alt": alt,

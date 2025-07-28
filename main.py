@@ -20,13 +20,15 @@ def main():
     try:
         results = scraper.scrape_multiple_pages(pages, max_workers=MAX_WORKERS)
         
-        if results:
+        if results and results.get('projects'):
             # Save results to JSON
             success = save_to_json(results, OUTPUT_FILE, ENCODING)
             
             if success:
                 print(f"\nScraping completed successfully!")
-                print(f"Total properties scraped: {len(results)}")
+                print(f"Total projects scraped: {len(results['projects'])}")
+                print(f"Total unique builders: {len(results['builders'])}")
+                print(f"Total unique locations: {len(results['locations'])}")
                 print(f"Results saved to: {OUTPUT_FILE}")
             else:
                 print(f"\nScraping completed but failed to save results to {OUTPUT_FILE}")
