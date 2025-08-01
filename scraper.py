@@ -109,7 +109,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item_index, item in enumerate(tqdm(listings)):
+            for item_index, item in enumerate(tqdm(listings[7:9])):
                 try:
                     property_data = self._extract_property_data(item, page, item_index)
                     if property_data:
