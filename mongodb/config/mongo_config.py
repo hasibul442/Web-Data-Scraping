@@ -9,7 +9,7 @@ from typing import Dict, Any
 # MongoDB Configuration
 MONGODB_CONFIG = {
     "uri": os.getenv("MONGODB_URI", "mongodb://localhost:27017"),
-    "database": os.getenv("MONGODB_DATABASE", "real_estate"),
+    "database": os.getenv("MONGODB_DATABASE", "gurgaon_real_estate"),
     "collections": {
         "projects": "projects",
         "developers": "developers", 

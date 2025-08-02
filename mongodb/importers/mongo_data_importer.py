@@ -18,7 +18,7 @@ class MongoDataImporter:
     Maps JSON structure to provided MongoDB schemas for projects, developers, and locations.
     """
     
-    def __init__(self, mongodb_uri: str = "mongodb://localhost:27017", database_name: str = "real_estate"):
+    def __init__(self, mongodb_uri: str = "mongodb://localhost:27017", database_name: str = "gurgaon_real_estate"):
         """Initialize MongoDB connection and collections."""
         try:
             self.client = MongoClient(mongodb_uri)

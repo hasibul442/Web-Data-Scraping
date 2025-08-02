@@ -45,53 +45,86 @@ def extract_media_by_sub_tab(project_id, url):
     soup = BeautifulSoup(response.text, 'html.parser')
     
     try:
-        figures = soup.select('.bxslider figure')  # Select all figure tags under .bxslider
-
         images = defaultdict(list)
         videos = []
 
-        for fig in figures:
-            try:
-                sub_tab = fig.get('sub-tab')
-
-                # Extract images
-                img_tags = fig.find_all('img')
-                if img_tags:
-                    img = img_tags[0]
-                    title = img.get('title')
-                    src = img.get('src')
-                    alt = img.get('alt')
-
-                    if sub_tab and src:
-                        images[sub_tab].append({
+        # Find all gallery tab content sections
+        gallery_sections = soup.select('.sy-gallery.gallery-tab-content')
+        
+        for gallery in gallery_sections:
+            tab_type = gallery.get('data-tab', '')
+            
+            # Find all white-box sections within this gallery
+            white_boxes = gallery.select('.white-box')
+            
+            for box in white_boxes:
+                # Get the category from the heading
+                heading_element = box.select_one('.white-box-heading')
+                if not heading_element:
+                    continue
+                    
+                category = heading_element.get_text(strip=True)
+                
+                # Handle videos section
+                if category.lower() == 'videos':
+                    video_links = box.select('a[href$=".mp4"]')
+                    for link in video_links:
+                        video_src = link.get('href')
+                        title = link.get('data-title', '').strip()
+                        
+                        # Try to get alt text from thumbnail image
+                        img = link.select_one('img')
+                        alt = img.get('alt', '') if img else ''
+                        
+                        if video_src:
+                            videos.append({
+                                "type": "video/mp4",
+                                "src": video_src,
+                                "alt": alt,
+                                "title": title
+                            })
+                else:
+                    # Handle image sections
+                    image_links = box.select('a[href]')
+                    for link in image_links:
+                        href = link.get('href', '')
+                        
+                        # Skip video links
+                        if href.endswith('.mp4'):
+                            continue
+                            
+                        # Get image details
+                        img = link.select_one('img')
+                        if not img:
+                            continue
+                            
+                        # Get image URL from href (full size) or data-src (thumbnail)
+                        img_src = href if href.startswith('http') else img.get('data-src') or img.get('src')
+                        if not img_src:
+                            continue
+                            
+                        title = link.get('data-title', '').strip()
+                        alt = img.get('alt', '').strip()
+                        
+                        # Clean up title - extract just the text part
+                        if title:
+                            # Remove HTML tags from title
+                            title_soup = BeautifulSoup(title, 'html.parser')
+                            title = title_soup.get_text(strip=True)
+                        
+                        # Determine the category key based on tab and section
+                        if tab_type.lower() == 'units':
+                            # For units tab, use the section heading (like "4 BHK", "5 BHK")
+                            category_key = f"floor_plans_{category.lower().replace(' ', '_')}"
+                        else:
+                            # For project tab, use the section heading
+                            category_key = category.lower().replace(' ', '_').replace('-', '_')
+                        
+                        images[category_key].append({
                             "title": title,
-                            "src": src.split('?')[0],  # Remove any query parameters
+                            "src": img_src.split('?')[0],  # Remove query parameters
                             "alt": alt
                         })
-                    continue
-
-                # Extract videos
-                video_tags = fig.find_all('video')
-                if video_tags:
-                    video_tag = video_tags[0]
-                    source_tags = video_tag.find_all('source')
-                    if not source_tags:
-                        continue
-                    source = source_tags[0]
-                    video_src = source.get('src')
-                    video_type = source.get('type')
-                    alt = video_tag.get('alt') or ""
-
-                    videos.append({
-                        "type": video_type,
-                        "src": video_src,
-                        "alt": alt
-                    })
-
-            except Exception as e:
-                print(f"[WARN] Failed to extract one figure: {e}")
-                traceback.print_exc()
-                continue
 
         return {
             "images": dict(images),
@@ -100,4 +133,5 @@ def extract_media_by_sub_tab(project_id, url):
 
     except Exception as e:
         print(f"[ERROR] Failed to parse the response: {e}")
+        traceback.print_exc()
         return {'images': {}, 'videos': []}

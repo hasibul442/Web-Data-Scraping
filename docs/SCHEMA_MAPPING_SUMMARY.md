@@ -121,7 +121,7 @@ python mongo_data_importer.py
 
 ### Configuration:
 - **Default MongoDB**: `mongodb://localhost:27017`
-- **Database**: `real_estate`
+- **Database**: `gurgaon_real_estate`
 - **Collections**: `projects`, `developers`, `locations`, `project_meta`
 
 ## 📋 Data Mapping Strategy

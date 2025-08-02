@@ -21,7 +21,7 @@ python mongo_data_importer.py
 
 The script uses these default settings:
 - **MongoDB URI**: `mongodb://localhost:27017`
-- **Database**: `real_estate`
+- **Database**: `gurgaon_real_estate`
 - **Collections**: `projects`, `developers`, `locations`, `project_meta`
 
 To customize, set environment variables:
