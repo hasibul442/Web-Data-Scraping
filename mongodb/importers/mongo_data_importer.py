@@ -242,14 +242,17 @@ class MongoDataImporter:
             "name": builder.get("name"),
             "image": self._extract_image_src(builder.get("image", {})),
             "projects": self._map_developer_projects(builder.get("projects", {})),
-            "head_office_address": self._map_head_office(builder.get("head_office_address", {})),
-            "branch_office_address": len(builder.get("branch_office_address", [])),
+            "head_office_address": builder.get("head_office_address", {}),
+            "branch_office_address": builder.get("branch_office_address", []),
             "description": builder.get("overview", ""),
-            "specialities": self._extract_text_from_html(builder.get("key_service_and_specialities")),
-            "awards": self._extract_text_from_html(builder.get("awards_and_recognition")),
+            # "specialities": self._extract_text_from_html(builder.get("key_service_and_specialities")),
+            "specialities": builder.get("key_service_and_specialities"),
+            # "awards": self._extract_text_from_html(builder.get("awards_and_recognition")),
+            "awards": builder.get("awards_and_recognition"),
             "customer_care_number": builder.get("customer_care_number"),
             "company_size": self._extract_company_size(builder.get("company_size")),
-            "faq": json.dumps(builder.get("faq", [])) if builder.get("faq") else None
+            "experience": builder.get("experience"),
+            "faq": self._map_faq_array(builder.get("faq", []))
         }
         
         return {k: v for k, v in mapped_developer.items() if v is not None}
@@ -268,12 +271,6 @@ class MongoDataImporter:
             "total": str(projects.get("total", 0))
         }
     
-    def _map_head_office(self, head_office: Dict[str, Any]) -> Optional[str]:
-        """Map head office address."""
-        if isinstance(head_office, dict) and head_office.get("location"):
-            return head_office["location"]
-        return None
-    
     def _extract_text_from_html(self, html_content: Optional[str]) -> Optional[str]:
         """Extract plain text from HTML content."""
         if not html_content:
@@ -291,6 +288,35 @@ class MongoDataImporter:
         elif isinstance(company_size, (int, str)) and str(company_size).isdigit():
             return int(company_size)
         return None
+    
+    def _map_faq_array(self, faq_data: List[Dict]) -> List[Dict[str, str]]:
+        """Map FAQ data to array of objects with question and answer keys."""
+        if not faq_data:
+            return []
+        
+        faq_array = []
+        for faq_item in faq_data:
+            if isinstance(faq_item, dict):
+                # Handle different possible FAQ structures
+                if faq_item.get("question") and faq_item.get("answer"):
+                    faq_array.append({
+                        "question": str(faq_item["question"]),
+                        "answer": str(faq_item["answer"])
+                    })
+                elif faq_item.get("q") and faq_item.get("a"):
+                    faq_array.append({
+                        "question": str(faq_item["q"]),
+                        "answer": str(faq_item["a"])
+                    })
+                elif len(faq_item) >= 2:
+                    # If it's a dict with unknown keys, take first two values
+                    keys = list(faq_item.keys())
+                    faq_array.append({
+                        "question": str(faq_item[keys[0]]),
+                        "answer": str(faq_item[keys[1]])
+                    })
+        
+        return faq_array
     
     def map_location_to_schema(self, location: Dict[str, Any]) -> Dict[str, Any]:
         """Map scraped location data to location schema."""
@@ -332,45 +358,42 @@ class MongoDataImporter:
             "by_budget": json.dumps(sale_data.get("by_budget", []))
         }
     
-    def create_project_meta(self, projects: List[Dict], developers: List[Dict]) -> Dict[str, Any]:
-        """Create project meta data from all projects and developers."""
+    def create_project_meta(self, project: Dict[str, Any]) -> Dict[str, Any]:
+        """Create project meta data for a single project."""
         
-        # Extract unique amenities with categories
+        # Extract amenities with categories for this project
         amenities = []
         amenity_categories = set()
         
-        for project in projects:
-            project_amenities = project.get("amenities", {})
-            for category, items in project_amenities.items():
-                amenity_categories.add(category)
-                for item in items:
-                    if isinstance(item, dict) and item.get("name"):
-                        amenities.append({
-                            "categoryName": category,
-                            "name": item["name"],
-                            "icon": item.get("icon", ""),
-                            "status": True
-                        })
+        project_amenities = project.get("amenities", {})
+        for category, items in project_amenities.items():
+            amenity_categories.add(category)
+            for item in items:
+                if isinstance(item, dict) and item.get("name"):
+                    amenities.append({
+                        "categoryName": category,
+                        "name": item["name"],
+                        "icon": item.get("icon", ""),
+                        "status": True
+                    })
         
-        # Extract unique bedrooms
+        # Extract bedrooms from this project's price list
         bedrooms = set()
-        property_types = set()
         property_statuses = set()
         
-        for project in projects:
-            # Extract bedrooms from price list
-            for price_item in project.get("price_list", []):
-                unit_type = price_item.get("unit_type", "")
-                bedroom = self.extract_bedroom_count(unit_type)
-                if bedroom:
-                    bedrooms.add(f"{bedroom} BHK")
-            
-            # Extract property types and statuses
-            property_types.add("Apartment")  # Inferred
-            if project.get("status"):
-                property_statuses.add(project["status"])
+        # Extract bedrooms from price list
+        for price_item in project.get("price_list", []):
+            unit_type = price_item.get("unit_type", "")
+            bedroom = self.extract_bedroom_count(unit_type)
+            if bedroom:
+                bedrooms.add(f"{bedroom} BHK")
+        
+        # Extract property status
+        if project.get("status"):
+            property_statuses.add(project["status"])
         
         meta_schema = {
+            "projectId": project.get("property_id"),  # Link to specific project
             "propertyPurpose": [{"name": "Residential", "icon": "", "status": True}],
             "buildingType": [{"name": "Apartment", "icon": "", "status": True}],
             "propertyType": [{"name": "Project", "icon": "", "status": True}],
@@ -386,7 +409,7 @@ class MongoDataImporter:
         
         return meta_schema
     
-    def import_data(self, json_file_path: str) -> Dict[str, int]:
+    def import_data(self, json_file_path: str):
         """Main method to import all data to MongoDB."""
         print(f"🚀 Starting data import from {json_file_path}")
         
@@ -401,53 +424,102 @@ class MongoDataImporter:
             "errors": 0
         }
         
-        # Import Developers (Builders)
+        # Create mapping dictionaries for foreign key relationships
+        developer_id_mapping = {}  # original_id -> MongoDB _id
+        location_id_mapping = {}   # original_id -> MongoDB _id
+        
+        # Import Developers (Builders) and build ID mapping
         print("\n📁 Importing Developers...")
         builders = data.get("builders", [])
         for builder in builders:
             try:
                 mapped_developer = self.map_developer_to_schema(builder)
                 if mapped_developer.get("developerId"):
-                    self.developers_collection.update_one(
+                    # Use upsert to get the MongoDB document
+                    result = self.developers_collection.update_one(
                         {"developerId": mapped_developer["developerId"]},
                         {"$set": mapped_developer},
                         upsert=True
                     )
+                    
+                    # Get the actual MongoDB _id
+                    if result.upserted_id:
+                        mongo_id = result.upserted_id
+                    else:
+                        # Document was updated, find it to get _id
+                        doc = self.developers_collection.find_one({"developerId": mapped_developer["developerId"]})
+                        mongo_id = doc["_id"]
+                    
+                    # Store mapping: original_id -> MongoDB _id
+                    developer_id_mapping[mapped_developer["developerId"]] = mongo_id
+                    
                     results["developers"] += 1
-                    print(f"✅ Developer: {mapped_developer.get('name', 'Unknown')}")
+                    print(f"✅ Developer: {mapped_developer.get('name', 'Unknown')} (ID: {mongo_id})")
                 else:
                     print(f"⚠️  Skipped developer without ID: {builder.get('name', 'Unknown')}")
             except Exception as e:
                 print(f"❌ Error importing developer {builder.get('name', 'Unknown')}: {e}")
                 results["errors"] += 1
         
-        # Import Locations
+        # Import Locations and build ID mapping
         print("\n🗺️  Importing Locations...")
         locations = data.get("locations", [])
         for location in locations:
             try:
                 mapped_location = self.map_location_to_schema(location)
                 if mapped_location.get("projectLocationId"):
-                    self.locations_collection.update_one(
+                    # Use upsert to get the MongoDB document
+                    result = self.locations_collection.update_one(
                         {"projectLocationId": mapped_location["projectLocationId"]},
                         {"$set": mapped_location},
                         upsert=True
                     )
+                    
+                    # Get the actual MongoDB _id
+                    if result.upserted_id:
+                        mongo_id = result.upserted_id
+                    else:
+                        # Document was updated, find it to get _id
+                        doc = self.locations_collection.find_one({"projectLocationId": mapped_location["projectLocationId"]})
+                        mongo_id = doc["_id"]
+                    
+                    # Store mapping: original_id -> MongoDB _id
+                    location_id_mapping[mapped_location["projectLocationId"]] = mongo_id
+                    
                     results["locations"] += 1
-                    print(f"✅ Location: {mapped_location.get('location_name', 'Unknown')}")
+                    print(f"✅ Location: {mapped_location.get('location_name', 'Unknown')} (ID: {mongo_id})")
                 else:
                     print(f"⚠️  Skipped location without ID: {location.get('location_name', 'Unknown')}")
             except Exception as e:
                 print(f"❌ Error importing location {location.get('location_name', 'Unknown')}: {e}")
                 results["errors"] += 1
         
-        # Import Projects
+        # Import Projects with proper foreign key references
         print("\n🏗️  Importing Projects...")
         projects = data.get("projects", [])
         for project in projects:
             try:
                 mapped_project = self.map_project_to_schema(project)
                 if mapped_project.get("projectId"):
+                    
+                    # Replace developerId with MongoDB _id reference
+                    original_developer_id = mapped_project.get("developerId")
+                    if original_developer_id and original_developer_id in developer_id_mapping:
+                        mapped_project["developerId"] = developer_id_mapping[original_developer_id]
+                        print(f"🔗 Linked project to developer ID: {developer_id_mapping[original_developer_id]}")
+                    else:
+                        print(f"⚠️  Developer reference not found for project: {project.get('name', 'Unknown')}")
+                        mapped_project["developerId"] = None
+                    
+                    # Replace projectLocationId with MongoDB _id reference
+                    original_location_id = mapped_project.get("projectLocationId")
+                    if original_location_id and original_location_id in location_id_mapping:
+                        mapped_project["projectLocationId"] = location_id_mapping[original_location_id]
+                        print(f"🔗 Linked project to location ID: {location_id_mapping[original_location_id]}")
+                    else:
+                        print(f"⚠️  Location reference not found for project: {project.get('name', 'Unknown')}")
+                        mapped_project["projectLocationId"] = None
+                    
                     self.projects_collection.update_one(
                         {"projectId": mapped_project["projectId"]},
                         {"$set": mapped_project},
@@ -461,19 +533,44 @@ class MongoDataImporter:
                 print(f"❌ Error importing project {project.get('name', 'Unknown')}: {e}")
                 results["errors"] += 1
         
-        # Create and Import Project Meta
-        print("\n📊 Creating Project Meta...")
+        # Create and Import Project Meta (one per project)
+        print("\n📊 Creating Project Meta for each project...")
         try:
-            meta_data = self.create_project_meta(projects, builders)
-            self.project_meta_collection.delete_many({})  # Clear existing meta
-            self.project_meta_collection.insert_one(meta_data)
-            results["project_meta"] = 1
-            print("✅ Project Meta created")
+            for project in projects:
+                if project.get("property_id"):
+                    meta_data = self.create_project_meta(project)
+                    self.project_meta_collection.update_one(
+                        {"projectId": meta_data["projectId"]},
+                        {"$set": meta_data},
+                        upsert=True
+                    )
+                    results["project_meta"] += 1
+                    print(f"✅ Project Meta created for: {project.get('name', meta_data['projectId'])}")
+            print(f"✅ Created {results['project_meta']} Project Meta documents")
         except Exception as e:
             print(f"❌ Error creating project meta: {e}")
             results["errors"] += 1
         
-        return results
+        return results, developer_id_mapping, location_id_mapping
+    
+    def print_foreign_key_summary(self, developer_mapping: Dict, location_mapping: Dict):
+        """Print summary of foreign key relationships created."""
+        print("\n" + "="*60)
+        print("🔗 FOREIGN KEY RELATIONSHIPS")
+        print("="*60)
+        
+        print(f"\n👥 Developer ID Mappings ({len(developer_mapping)} total):")
+        for original_id, mongo_id in developer_mapping.items():
+            print(f"  • {original_id} → {mongo_id}")
+        
+        print(f"\n🗺️  Location ID Mappings ({len(location_mapping)} total):")
+        for original_id, mongo_id in location_mapping.items():
+            print(f"  • {original_id} → {mongo_id}")
+        
+        print("\n📋 Collections Schema:")
+        print("  • projects.developerId → developers._id")
+        print("  • projects.projectLocationId → locations._id")
+        print("="*60)
     
     def print_schema_mapping_report(self, json_file_path: str):
         """Print detailed report of schema mapping."""
@@ -610,7 +707,10 @@ def main():
         importer.print_schema_mapping_report(json_file)
         
         # Import data
-        results = importer.import_data(json_file)
+        results, dev_mapping, loc_mapping = importer.import_data(json_file)
+        
+        # Print foreign key summary
+        importer.print_foreign_key_summary(dev_mapping, loc_mapping)
         
         # Print summary
         print("\n" + "="*60)

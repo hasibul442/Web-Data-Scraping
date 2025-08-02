@@ -32,7 +32,10 @@ def main():
         
         # Create importer and run
         importer = MongoDataImporter()
-        results = importer.import_data(input_file)
+        results, dev_mapping, loc_mapping = importer.import_data(input_file)
+        
+        # Print foreign key relationships
+        importer.print_foreign_key_summary(dev_mapping, loc_mapping)
         
         if results:
             print("✅ MongoDB import completed successfully!")
