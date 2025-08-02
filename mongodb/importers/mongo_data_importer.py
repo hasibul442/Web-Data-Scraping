@@ -334,10 +334,11 @@ class MongoDataImporter:
         """Map scraped location data to location schema."""
         
         mapped_location = {
-            "projectLocationId": location.get("id"),
+            # "projectLocationId": location.get("id"),
             "location_name": location.get("location_name"),
             "description": location.get("about_sector", {}),
             "indices": self._map_location_indices(location.get("indices", [])),
+            "neighbourhood": location.get("neighbourhood", {}),
             "demand": self._map_demand_supply(location.get("demand_supply", {})),
             "price_insights": location.get("price_insights", {})
         }
