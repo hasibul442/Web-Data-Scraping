@@ -129,63 +129,75 @@ def replace_and_download_project(project):
         download_tasks["thumbnail_image"] = (url, rel_path)
 
     # === Amenities Icons (process immediately due to shared nature) ===
-    for category, items in project.get("amenities", {}).items():
-        for item in items:
-            if "icon" in item:
-                url = item["icon"]
-                filename = os.path.basename(urlparse(url).path)
-                filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-                rel_path = get_asset_relative_path("assets/projects/common/amenities", category, filename)
-                full_path = get_full_local_path(rel_path)
-                if download_if_needed(url, full_path):
-                    item["icon"] = rel_path
+    amenities = project.get("amenities", {})
+    if amenities:
+        for category, items in amenities.items():
+            if items:  # Check if items is not None
+                for item in items:
+                    if item and "icon" in item:
+                        url = item["icon"]
+                        filename = os.path.basename(urlparse(url).path)
+                        filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
+                        rel_path = get_asset_relative_path("assets/projects/common/amenities", category, filename)
+                        full_path = get_full_local_path(rel_path)
+                        if download_if_needed(url, full_path):
+                            item["icon"] = rel_path
 
     # === Floor Plan Images ===
     floor_plan_tasks = {}
     floor_plan_mapping = {}
-    for plan_type, items in project.get("floor_plans", {}).items():
-        for i, item in enumerate(items):
-            if "2d_src" in item and item["2d_src"]:
-                url = item["2d_src"]
-                filename = os.path.basename(urlparse(url).path)
-                filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-                rel_path = get_asset_relative_path(project_folder, "floor_plan_image", plan_type, filename)
-                task_key = f"floor_plan_{plan_type}_{i}"
-                floor_plan_tasks[task_key] = (url, rel_path)
-                floor_plan_mapping[task_key] = (plan_type, i, "2d_src")
+    floor_plans = project.get("floor_plans", {})
+    if floor_plans:
+        for plan_type, items in floor_plans.items():
+            if items:  # Check if items is not None
+                for i, item in enumerate(items):
+                    if item and "2d_src" in item and item["2d_src"]:
+                        url = item["2d_src"]
+                        filename = os.path.basename(urlparse(url).path)
+                        filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
+                        rel_path = get_asset_relative_path(project_folder, "floor_plan_image", plan_type, filename)
+                        task_key = f"floor_plan_{plan_type}_{i}"
+                        floor_plan_tasks[task_key] = (url, rel_path)
+                        floor_plan_mapping[task_key] = (plan_type, i, "2d_src")
 
     # === All Media Images ===
     media_tasks = {}
     media_mapping = {}
-    all_images = project.get("all_media", {}).get("images", {})
-    for section, items in all_images.items():
-        for i, img in enumerate(items):
-            if "src" in img:
-                url = img["src"]
-                filename = os.path.basename(urlparse(url).path)
-                filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-                rel_path = get_asset_relative_path(project_folder, "images", section, filename)
-                task_key = f"media_{section}_{i}"
-                media_tasks[task_key] = (url, rel_path)
-                media_mapping[task_key] = (section, i, "src")
+    all_media = project.get("all_media", {})
+    if all_media:
+        all_images = all_media.get("images", {})
+        if all_images:
+            for section, items in all_images.items():
+                if items:  # Check if items is not None
+                    for i, img in enumerate(items):
+                        if img and "src" in img:
+                            url = img["src"]
+                            filename = os.path.basename(urlparse(url).path)
+                            filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
+                            rel_path = get_asset_relative_path(project_folder, "images", section, filename)
+                            task_key = f"media_{section}_{i}"
+                            media_tasks[task_key] = (url, rel_path)
+                            media_mapping[task_key] = (section, i, "src")
 
     # === All Media Videos ===
     video_tasks = {}
     video_mapping = {}
-    all_videos = project.get("all_media", {}).get("videos", [])
-    for i, vid in enumerate(all_videos):
-        if "src" in vid and vid["src"].startswith("http"):
-            url = vid["src"]
-            filename = os.path.basename(urlparse(url).path)
-            filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-            rel_path = get_asset_relative_path(project_folder, "videos", filename)
-            task_key = f"video_{i}"
-            video_tasks[task_key] = (url, rel_path)
-            video_mapping[task_key] = (i, "src")
+    if all_media:
+        all_videos = all_media.get("videos", [])
+        if all_videos:
+            for i, vid in enumerate(all_videos):
+                if vid and "src" in vid and vid["src"] and vid["src"].startswith("http"):
+                    url = vid["src"]
+                    filename = os.path.basename(urlparse(url).path)
+                    filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
+                    rel_path = get_asset_relative_path(project_folder, "videos", filename)
+                    task_key = f"video_{i}"
+                    video_tasks[task_key] = (url, rel_path)
+                    video_mapping[task_key] = (i, "src")
 
     # === Builder Info Assets ===
     builder_info = project.get("builder_info", {})
-    if "image" in builder_info and builder_info["image"].startswith("http"):
+    if builder_info and "image" in builder_info and builder_info["image"] and builder_info["image"].startswith("http"):
         url = builder_info["image"]
         filename = os.path.basename(urlparse(url).path)
         filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
@@ -196,16 +208,18 @@ def replace_and_download_project(project):
     location_insights = project.get("location_insights", {})
     location_insight_tasks = {}
     location_insight_mapping = {}
-    if "insights" in location_insights:
-        for i, insight in enumerate(location_insights["insights"]):
-            if "icon" in insight and insight["icon"].startswith("http"):
-                url = insight["icon"]
-                filename = os.path.basename(urlparse(url).path)
-                filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
-                rel_path = get_asset_relative_path(project_folder, "location_insights", "icons", filename)
-                task_key = f"location_insight_{i}"
-                location_insight_tasks[task_key] = (url, rel_path)
-                location_insight_mapping[task_key] = i
+    if location_insights and "insights" in location_insights:
+        insights = location_insights["insights"]
+        if insights:  # Check if insights is not None
+            for i, insight in enumerate(insights):
+                if insight and "icon" in insight and insight["icon"] and insight["icon"].startswith("http"):
+                    url = insight["icon"]
+                    filename = os.path.basename(urlparse(url).path)
+                    filename = f"{os.path.splitext(filename)[0]}{get_file_extension(url)}"
+                    rel_path = get_asset_relative_path(project_folder, "location_insights", "icons", filename)
+                    task_key = f"location_insight_{i}"
+                    location_insight_tasks[task_key] = (url, rel_path)
+                    location_insight_mapping[task_key] = i
 
     # Process all download tasks concurrently
     all_tasks = {**download_tasks, **floor_plan_tasks, **media_tasks, **video_tasks, **location_insight_tasks}
@@ -224,25 +238,37 @@ def replace_and_download_project(project):
         for task_key, rel_path in successful_downloads.items():
             if task_key in floor_plan_mapping:
                 plan_type, item_index, field = floor_plan_mapping[task_key]
-                project["floor_plans"][plan_type][item_index][field] = rel_path
+                if "floor_plans" in project and project["floor_plans"] and plan_type in project["floor_plans"]:
+                    if project["floor_plans"][plan_type] and item_index < len(project["floor_plans"][plan_type]):
+                        project["floor_plans"][plan_type][item_index][field] = rel_path
         
         # Update media images
         for task_key, rel_path in successful_downloads.items():
             if task_key in media_mapping:
                 section, item_index, field = media_mapping[task_key]
-                project["all_media"]["images"][section][item_index][field] = rel_path
+                if ("all_media" in project and project["all_media"] and 
+                    "images" in project["all_media"] and project["all_media"]["images"] and
+                    section in project["all_media"]["images"] and project["all_media"]["images"][section] and
+                    item_index < len(project["all_media"]["images"][section])):
+                    project["all_media"]["images"][section][item_index][field] = rel_path
         
         # Update media videos
         for task_key, rel_path in successful_downloads.items():
             if task_key in video_mapping:
                 item_index, field = video_mapping[task_key]
-                project["all_media"]["videos"][item_index][field] = rel_path
+                if ("all_media" in project and project["all_media"] and 
+                    "videos" in project["all_media"] and project["all_media"]["videos"] and
+                    item_index < len(project["all_media"]["videos"])):
+                    project["all_media"]["videos"][item_index][field] = rel_path
         
         # Update location insights
         for task_key, rel_path in successful_downloads.items():
             if task_key in location_insight_mapping:
                 insight_index = location_insight_mapping[task_key]
-                project["location_insights"]["insights"][insight_index]["icon"] = rel_path
+                if ("location_insights" in project and project["location_insights"] and
+                    "insights" in project["location_insights"] and project["location_insights"]["insights"] and
+                    insight_index < len(project["location_insights"]["insights"])):
+                    project["location_insights"]["insights"][insight_index]["icon"] = rel_path
 
     return project
 
