@@ -192,7 +192,8 @@ def get_management_team(soup):
 
     # ===== CEO / Executive Team =====
     ceo_heading = section.select_one('.ownersHeading span')
-    ceo_title = ceo_heading.get_text(strip=True) if ceo_heading else "CEO"
+    # ceo_title = ceo_heading.get_text(strip=True) if ceo_heading else "CEO"
+    ceo_title = "CEO"
 
     team_data[ceo_title] = []
     for profile in section.select('.ownersProfileBox'):
@@ -212,7 +213,8 @@ def get_management_team(soup):
 
     # ===== Owners / Team Carousel =====
     owners_heading = section.select_one('.companyOwnersBox .ownersHeading span')
-    owners_title = owners_heading.get_text(strip=True) if owners_heading else "Owners / Team"
+    # owners_title = owners_heading.get_text(strip=True) if owners_heading else "Owners / Team"
+    owners_title = "owners_or_team"
 
     team_data[owners_title] = []
     for card in section.select('.ourTeamCard'):

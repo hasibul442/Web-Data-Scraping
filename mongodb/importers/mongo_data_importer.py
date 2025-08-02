@@ -252,6 +252,7 @@ class MongoDataImporter:
             "customer_care_number": builder.get("customer_care_number"),
             "company_size": self._extract_company_size(builder.get("company_size")),
             "experience": builder.get("experience"),
+            "management_team": builder.get("management_team"),
             "faq": self._map_faq_array(builder.get("faq", []))
         }
         
