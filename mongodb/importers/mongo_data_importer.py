@@ -334,7 +334,6 @@ class MongoDataImporter:
         """Map scraped location data to location schema."""
         
         mapped_location = {
-            # "projectLocationId": location.get("id"),
             "location_name": location.get("location_name"),
             "description": location.get("about_sector", {}),
             "indices": self._map_location_indices(location.get("indices", [])),
@@ -500,10 +499,15 @@ class MongoDataImporter:
         for location in locations:
             try:
                 mapped_location = self.map_location_to_schema(location)
-                if mapped_location.get("projectLocationId"):
+                original_location_id = location.get("id")  # Get original location ID
+                
+                if original_location_id:
+                    # Add a unique identifier for upsert operations
+                    mapped_location["original_location_id"] = original_location_id
+                    
                     # Use upsert to get the MongoDB document
                     result = self.locations_collection.update_one(
-                        {"projectLocationId": mapped_location["projectLocationId"]},
+                        {"original_location_id": original_location_id},
                         {"$set": mapped_location},
                         upsert=True
                     )
@@ -513,11 +517,11 @@ class MongoDataImporter:
                         mongo_id = result.upserted_id
                     else:
                         # Document was updated, find it to get _id
-                        doc = self.locations_collection.find_one({"projectLocationId": mapped_location["projectLocationId"]})
+                        doc = self.locations_collection.find_one({"original_location_id": original_location_id})
                         mongo_id = doc["_id"]
                     
                     # Store mapping: original_id -> MongoDB _id
-                    location_id_mapping[mapped_location["projectLocationId"]] = mongo_id
+                    location_id_mapping[original_location_id] = mongo_id
                     
                     results["locations"] += 1
                     print(f"✅ Location: {mapped_location.get('location_name', 'Unknown')} (ID: {mongo_id})")
