@@ -212,25 +212,33 @@ class MongoDataImporter:
         return floor_plan_data
     
     def _map_project_images(self, project: Dict[str, Any]) -> Dict[str, List[str]]:
-        """Map project images."""
-        images = {
-            "coverImage": [],
-            "masterPlan": [],
-            "locationImage": [],
-            "amenitiesImage": [],
-            "pushCreative": [],
-            "brochure": [],
-            "videos": []
-        }
+        """Map project images dynamically from all_media."""
+        images = {}
         
         # Add thumbnail as cover image
-        if project.get("thumbnail_image"):
-            images["coverImage"].append(project["thumbnail_image"])
+        # if project.get("thumbnail_image"):
+        #     images["coverImage"] = [project["thumbnail_image"]]
         
-        # Add videos from all_media
+        # Dynamically map all categories from all_media
         all_media = project.get("all_media", {})
-        if all_media.get("videos"):
-            images["videos"] = all_media["videos"]
+        
+        for category, media_list in all_media.items():
+            if category == "images" and isinstance(media_list, dict):
+                # Flatten nested images - extract each subcategory to top level
+                for sub_category, sub_media_list in media_list.items():
+                    if isinstance(sub_media_list, list) and sub_media_list:
+                        images[sub_category] = sub_media_list
+                    elif sub_media_list:
+                        images[sub_category] = [sub_media_list] if not isinstance(sub_media_list, list) else sub_media_list
+            elif isinstance(media_list, list) and media_list:
+                # Direct category mapping (like videos, coverImage, etc.)
+                images[category] = media_list
+            elif media_list:  # Handle single items or other formats
+                images[category] = [media_list] if not isinstance(media_list, list) else media_list
+        
+        # If no all_media but there's thumbnail, ensure coverImage exists
+        if not images and project.get("thumbnail_image"):
+            images["coverImage"] = [project["thumbnail_image"]]
         
         return images
     
@@ -322,12 +330,13 @@ class MongoDataImporter:
     def map_location_to_schema(self, location: Dict[str, Any]) -> Dict[str, Any]:
         """Map scraped location data to location schema."""
         
+    def map_location_to_schema(self, location: Dict[str, Any]) -> Dict[str, Any]:
+        """Map scraped location data to location schema."""
+        
         mapped_location = {
             "projectLocationId": location.get("id"),
             "location_name": location.get("location_name"),
-            "description": self._extract_text_from_html(
-                location.get("about_sector", {}).get("overview")
-            ),
+            "description": location.get("about_sector", {}),
             "indices": self._map_location_indices(location.get("indices", [])),
             "demand": self._map_demand_supply(location.get("demand_supply", {})),
             "price_insights": location.get("price_insights", {})
@@ -335,29 +344,51 @@ class MongoDataImporter:
         
         return {k: v for k, v in mapped_location.items() if v is not None}
     
-    def _map_location_indices(self, indices: List[Dict]) -> Dict[str, str]:
-        """Map location indices to schema format."""
+    def _map_location_indices(self, indices: List[Dict]) -> List[Dict[str, Any]]:
+        """Map location indices to schema format - returns array of indices."""
         if not indices:
-            return {}
+            return []
         
-        # Take first index as primary or combine all
-        primary_index = indices[0] if indices else {}
-        return {
-            "heading": primary_index.get("heading", ""),
-            "content": "; ".join([idx.get("heading", "") for idx in indices]),
-            "rating": primary_index.get("rating", "")
-        }
+        # Map each index to the proper schema format
+        mapped_indices = []
+        for index in indices:
+            if isinstance(index, dict):
+                mapped_index = {
+                    "heading": index.get("heading", ""),
+                    "content": index.get("points", []) if isinstance(index.get("points"), list) else [index.get("points", "")],
+                    "rating": index.get("rating", "")
+                }
+                mapped_indices.append(mapped_index)
+        
+        return mapped_indices
     
-    def _map_demand_supply(self, demand_supply: Dict) -> Dict[str, str]:
-        """Map demand supply data."""
-        sale_data = demand_supply.get("sale", {})
+    def _map_demand_supply(self, demand_supply: Dict) -> List[Dict[str, Any]]:
+        """Map demand supply data to array format with sale and rent objects."""
+        demand_array = []
         
-        return {
-            "type": "Mixed",  # Default
-            "by_property": json.dumps(sale_data.get("by_property_type", [])),
-            "by_bhk": json.dumps(sale_data.get("by_bhk", [])),
-            "by_budget": json.dumps(sale_data.get("by_budget", []))
-        }
+        # Map sale data
+        sale_data = demand_supply.get("sale", {})
+        if sale_data:
+            sale_obj = {
+                "type": "sale",
+                "by_property": sale_data.get("by_property_type", []),
+                "by_bhk": sale_data.get("by_bhk", []),
+                "by_budget": sale_data.get("by_budget", [])
+            }
+            demand_array.append(sale_obj)
+        
+        # Map rent data
+        rent_data = demand_supply.get("rent", {})
+        if rent_data:
+            rent_obj = {
+                "type": "rent",
+                "by_property": rent_data.get("by_property_type", []),
+                "by_bhk": rent_data.get("by_bhk", []),
+                "by_budget": rent_data.get("by_budget", [])
+            }
+            demand_array.append(rent_obj)
+        
+        return demand_array
     
     def create_project_meta(self, project: Dict[str, Any]) -> Dict[str, Any]:
         """Create project meta data for a single project."""

@@ -335,7 +335,7 @@ def extract_demand_supply(soup):
                 section_data.append({
                     "type": type_name,
                     "demand_percent": demand_percent,
-                    "supplyPercent": supply_percent
+                    "supply_percent": supply_percent
                 })
 
             tab_data[section_key] = section_data
