@@ -5,11 +5,11 @@ import traceback
 import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-from config import HEADERS, BASE_URL, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
-from media_extractor import extract_media_by_sub_tab
-from builder_information import extract_builder_information
-from utils import safe_get_text, safe_get_attribute
-from location_insights_scraper import extract_location_insights
+from core.config import HEADERS, BASE_URL, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from media.media_extractor import extract_media_by_sub_tab
+from scrapers.builder_information import extract_builder_information
+from utils.utils import safe_get_text, safe_get_attribute
+from scrapers.location_insights_scraper import extract_location_insights
 import re
 from tqdm import tqdm
 import json

@@ -3,8 +3,8 @@
 import requests
 import time
 from bs4 import BeautifulSoup
-from config import HEADERS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
-from utils import safe_get_text, safe_get_attribute
+from core.config import HEADERS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from utils.utils import safe_get_text, safe_get_attribute
 import re
     
 

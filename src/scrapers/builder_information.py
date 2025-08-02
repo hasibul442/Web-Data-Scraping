@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import time
 
 # Import configuration from config.py
-from config import HEADERS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from core.config import HEADERS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
 
 def get_soup(url):
     """Fetch and parse the HTML content from a URL with retry logic."""

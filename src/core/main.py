@@ -1,8 +1,8 @@
 # Main script to run the property scraper
 
-from scraper import PropertyScraper
-from utils import save_to_json, flatten_list_of_lists
-from config import MAX_WORKERS, OUTPUT_FILE, START_PAGE, END_PAGE, ENCODING
+from scrapers.scraper import PropertyScraper
+from utils.utils import save_to_json, flatten_list_of_lists
+from core.config import MAX_WORKERS, OUTPUT_FILE, START_PAGE, END_PAGE, ENCODING
 
 def main():
     """Main function to run the property scraper."""

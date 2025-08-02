@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import requests
 from urllib.parse import urlparse
@@ -6,13 +7,28 @@ from tqdm import tqdm
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
-from config import MAX_WORKERS
+
+# Add project root to Python path when run directly
+if __name__ == "__main__":
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+    sys.path.insert(0, os.path.join(project_root, 'src'))
+
+from core.config import MAX_WORKERS
 
 # === Custom Paths ===
-INPUT_JSON = "output/gurgaon_properties.json"
-OUTPUT_JSON = "output/gurgaon_properties_with_local_assets.json"
-ASSETS_ROOT = "output/"
-LOG_FILE = "output/download_log.txt"
+# Get project root directory
+if __name__ == "__main__":
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+else:
+    # When imported as module, get root differently
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+INPUT_JSON = os.path.join(project_root, "output", "gurgaon_properties.json")
+OUTPUT_JSON = os.path.join(project_root, "output", "gurgaon_properties_with_local_assets.json")
+ASSETS_ROOT = os.path.join(project_root, "output") + os.sep
+LOG_FILE = os.path.join(project_root, "output", "download_log.txt")
 
 # Thread-safe download log with lock
 download_log_lock = threading.Lock()
