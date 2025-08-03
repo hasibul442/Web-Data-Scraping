@@ -109,7 +109,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item_index, item in enumerate(tqdm(listings[10:20])):
+            for item_index, item in enumerate(tqdm(listings[20:25])):
                 try:
                     property_data = self._extract_property_data(item, page, item_index)
                     if property_data:
@@ -217,7 +217,7 @@ class PropertyScraper:
         all_media = extract_media_by_sub_tab(project_id, url)
         location_insights_basic = self.extract_location_description_and_insights(soup)
         detailed_location_insights = extract_location_insights(location_insights_basic["know_more_url"]) if location_insights_basic and location_insights_basic.get("know_more_url") else None
-
+        cordinates = self.extract_coordinates(soup, url)
         # Get or create IDs for builder and location
         builder_id = self._get_or_create_builder_id(builder_info)
         location_id = self._get_or_create_location_id(detailed_location_insights)
@@ -236,6 +236,7 @@ class PropertyScraper:
             'property_id': project_id,
             'name': project_name,
             'location': location,
+            'cordinates': cordinates,  # Extracted longitude and latitude coordinates
             'thumbnail_image': "https://static.squareyards.com/" + image if image else None,
             'price': price_range,
             'price_insights': price_insights,
@@ -746,4 +747,42 @@ class PropertyScraper:
 
         except Exception as e:
             print(f"Error in extract_floor_plans: {e}")
-            return None 
+            return None
+    
+    def extract_coordinates(self, soup, url):
+        """Extract longitude and latitude coordinates from the location map section."""
+        try:
+            # Find the location map section
+            map_section = soup.select_one('#mapLandmarks')
+            if not map_section:
+                return {
+                    "longitude": None,
+                    "latitude": None
+                }
+
+            # Look for landmark items with coordinate data
+            landmark_items = map_section.select('.near-location li[data-longitude][data-latitude]')
+            
+            if landmark_items:
+                # Get coordinates from the first landmark item (they should all be the same for the project location)
+                first_item = landmark_items[0]
+                longitude = first_item.get('data-longitude')
+                latitude = first_item.get('data-latitude')
+                
+                return {
+                    "longitude": float(longitude) if longitude else None,
+                    "latitude": float(latitude) if latitude else None
+                }
+            else:
+                # If no landmark items found, return None values
+                return {
+                    "longitude": None,
+                    "latitude": None
+                }
+
+        except Exception as e:
+            print(f"Error extracting coordinates from {url}: {e}")
+            return {
+                "longitude": None,
+                "latitude": None
+            } 

@@ -80,8 +80,8 @@ class MongoDataImporter:
             "description": project.get("about", ""),
             "location": project.get("location", ""),
             "fullAddress": project.get("location", ""),
-            "lat": None,  # Not available in current data
-            "lng": None,  # Not available in current data
+            "lat": project.get("cordinates", {}).get("latitude"),
+            "lng": project.get("cordinates", {}).get("longitude"),
             "projectLocationId": project.get("location_insights", {}).get("location_id"),
             "zipcode": None,  # Not available
             "propertyAge": None,  # Not available
