@@ -88,12 +88,12 @@ class MongoDataImporter:
             "unitNo": None,  # Not available
             "status": 1,  # Active
             "propertyPurpose": "Residential",  # Inferred
-            "buildingType": "Apartment",  # Inferred from data
+            "buildingType": None,  # Inferred from data
             "propertyType": "Project",  # Inferred
             "propertyStatus": project.get("status", ""),
             "expectedPossession": None,  # Not directly available
-            "propertySaleType": "New",  # Inferred
-            "category": "Residential",  # Inferred
+            "propertySaleType": None,  # Inferred
+            "category": None,  # Inferred
             "highlights": self._map_highlights(project),
             "furnishingType": None,  # Not available
             "amenities": self._map_amenities(project.get("amenities", {})),
@@ -397,7 +397,7 @@ class MongoDataImporter:
         return demand_array
     
     def create_project_meta(self, project: Dict[str, Any]) -> Dict[str, Any]:
-        """Create project meta data for a single project."""
+        """Create project meta data for a single project with dynamic values extracted from project data."""
         
         # Extract amenities with categories for this project
         amenities = []
@@ -415,35 +415,98 @@ class MongoDataImporter:
                         "status": True
                     })
         
-        # Extract bedrooms from this project's price list
-        bedrooms = set()
-        property_statuses = set()
+        # Extract property purpose dynamically (if available in project data)
+        property_purpose = []
+        if project.get("property_purpose"):
+            property_purpose.append({"name": project["property_purpose"], "icon": "", "status": True})
         
-        # Extract bedrooms from price list
+        # Extract building type dynamically
+        building_type = []
+        if project.get("building_type"):
+            building_type.append({"name": project["building_type"], "icon": "", "status": True})
+        elif project.get("information", {}).get("property_type"):
+            building_type.append({"name": project["information"]["property_type"], "icon": "", "status": True})
+        
+        # Extract property type dynamically
+        property_type = []
+        if project.get("property_type"):
+            property_type.append({"name": project["property_type"], "icon": "", "status": True})
+        
+        # Extract bedrooms from this project's price list
+        bedrooms = []
+        bedroom_set = set()
         for price_item in project.get("price_list", []):
             unit_type = price_item.get("unit_type", "")
             bedroom = self.extract_bedroom_count(unit_type)
-            if bedroom:
-                bedrooms.add(f"{bedroom} BHK")
+            if bedroom and bedroom not in bedroom_set:
+                bedroom_set.add(bedroom)
+                bedrooms.append({"name": f"{bedroom} BHK", "icon": "", "status": True})
         
-        # Extract property status
+        # Extract property status dynamically
+        property_status = []
         if project.get("status"):
-            property_statuses.add(project["status"])
+            property_status.append({"name": project["status"], "icon": "icon-project-status", "status": True})
+        
+        # Extract property sale type dynamically
+        property_sale_type = []
+        if project.get("sale_type"):
+            property_sale_type.append({"name": project["sale_type"], "icon": "", "status": True})
+        elif project.get("information", {}).get("project_status"):
+            property_sale_type.append({"name": project["information"]["project_status"], "icon": "", "status": True})
+        
+        # Extract expected possession dynamically
+        expected_possession = []
+        if project.get("possession_date"):
+            expected_possession.append({"name": project["possession_date"], "icon": "", "status": True})
+        elif project.get("information", {}).get("possession"):
+            expected_possession.append({"name": project["information"]["possession"], "icon": "", "status": True})
+        
+        # Extract furnishing type dynamically
+        furnishing_type = []
+        if project.get("furnishing"):
+            furnishing_type.append({"name": project["furnishing"], "icon": "", "status": True})
+        elif project.get("information", {}).get("furnishing_status"):
+            furnishing_type.append({"name": project["information"]["furnishing_status"], "icon": "", "status": True})
+        
+        # Extract highlights dynamically from information
+        highlights = []
+        info = project.get("information", {})
+        for key, value in info.items():
+            if value and key not in ["unit_config", "size", "units", "total_area"]:  # Exclude already mapped fields
+                highlights.append({"name": f"{key.replace('_', ' ').title()}: {value}", "icon": "", "status": True})
+        
+        # Extract categories from amenity categories
+        categories = []
+        for category in amenity_categories:
+            categories.append({"name": category, "icon": "", "status": True})
         
         meta_schema = {
             "projectId": project.get("property_id"),  # Link to specific project
-            "propertyPurpose": [{"name": "Residential", "icon": "", "status": True}],
-            "buildingType": [{"name": "Apartment", "icon": "", "status": True}],
-            "propertyType": [{"name": "Project", "icon": "", "status": True}],
-            "bedrooms": [{"name": br, "icon": "", "status": True} for br in sorted(bedrooms)],
-            "propertyStatus": [{"name": status, "icon": "", "status": True} for status in property_statuses],
-            "propertySaleType": [{"name": "New Launch", "icon": "", "status": True}],
-            "expectedPossession": [{"name": "Under Construction", "icon": "", "status": True}],
-            "furnishingType": [{"name": "Unfurnished", "icon": "", "status": True}],
-            "highlights": [{"name": "Premium Location", "icon": "", "status": True}],
-            "categories": [{"name": cat, "icon": "", "status": True} for cat in amenity_categories],
-            "amenities": amenities
         }
+        
+        # Only include fields that have actual data
+        if property_purpose:
+            meta_schema["propertyPurpose"] = property_purpose
+        if building_type:
+            meta_schema["buildingType"] = building_type
+        if property_type:
+            meta_schema["propertyType"] = property_type
+        if bedrooms:
+            meta_schema["bedrooms"] = bedrooms
+        if property_status:
+            meta_schema["propertyStatus"] = property_status
+        if property_sale_type:
+            meta_schema["propertySaleType"] = property_sale_type
+        if expected_possession:
+            meta_schema["expectedPossession"] = expected_possession
+        if furnishing_type:
+            meta_schema["furnishingType"] = furnishing_type
+        if highlights:
+            meta_schema["highlights"] = highlights
+        if categories:
+            meta_schema["categories"] = categories
+        if amenities:
+            meta_schema["amenities"] = amenities
         
         return meta_schema
     
