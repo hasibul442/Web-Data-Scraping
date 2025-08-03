@@ -169,7 +169,6 @@ class PropertyScraper:
         """Extract property data from a listing item."""
         # Get basic elements
         fav_btn = item.select_one('.npFavBtn')
-        project_name_elem = item.select_one('.npProjectName a strong')
         url_elem = item.select_one('.npProjectName a')
         location_elem = item.select_one('.npProjectCity')
         price_elem = item.select_one('.npPriceBox')
@@ -177,7 +176,6 @@ class PropertyScraper:
 
         # Extract data with safety checks
         project_id = safe_get_attribute(fav_btn, 'data-projectid')
-        project_name = safe_get_text(project_name_elem)
         url = safe_get_attribute(url_elem, 'href')
         location = safe_get_text(location_elem)
         price_range = safe_get_text(price_elem)
@@ -185,11 +183,11 @@ class PropertyScraper:
         image = safe_get_attribute(image_elem, 'data-image')
 
         # Skip if essential data is missing
-        if not project_id or not project_name:
-            if page_number is not None and item_index is not None:
-                self._track_failed_item(item, page_number, item_index, 
-                                      "Missing essential data (project_id or project_name)", url)
-            return None
+        # if not project_id or not project_name:
+        #     if page_number is not None and item_index is not None:
+        #         self._track_failed_item(item, page_number, item_index, 
+        #                               "Missing essential data (project_id or project_name)", url)
+        #     return None
 
         soup = self.get_soup(url)  # Call only once per page
         
@@ -234,12 +232,12 @@ class PropertyScraper:
 
         return {
             'property_id': project_id,
-            'name': project_name,
+            'name': self.extract_project_name(soup, url),
             'location': location,
             'thumbnail_image': "https://static.squareyards.com/" + image if image else None,
             'price': price_range,
             'price_insights': price_insights,
-            'status': status,
+            'status': self.extract_project_status(soup, url),
             "information": project_spec,
             'price_list': price_list,
             'floor_plans': floor_plan,
@@ -302,6 +300,75 @@ class PropertyScraper:
             'builders': list(self.builders_collection.values()),
             'locations': list(self.location_insights_collection.values())
         }
+
+    def extract_project_name(self, soup, url):
+        """Scrape the details from a property's individual page."""
+        if not self._validate_soup(soup, "extract_project_name", url):
+            return {}
+            
+        try:
+            # Get the project name from the soup
+            project_name_elem = soup.select_one('.project-top-information .project-top-details h1')
+            if not project_name_elem:
+                return None
+            
+            for span in project_name_elem.find_all("span"):
+                span.extract()
+
+            project_name = project_name_elem.get_text(strip=True)
+            return project_name
+        except Exception as e:
+            print(f"Error scraping project name from {url}: {e}")
+            return None
+
+    # def extract_project_location(self, soup, url):
+    #     """Scrape the details from a property's individual page."""
+    #     if not self._validate_soup(soup, "extract_project_location", url):
+    #         return {}
+            
+    #     try:
+    #         # Get the project location from the soup
+    #         project_location_elem = soup.select_one('.project-top-information .project-top-details h1 span')
+    #         if not project_location_elem:
+    #             return None
+
+    #         project_location = project_location_elem.get_text(separator=" ", strip=True)
+    #         return project_location
+    #     except Exception as e:
+    #         print(f"Error scraping project location from {url}: {e}")
+    #         return None
+
+    def extract_project_status(self, soup, url):
+        """Extract the project status text and icon class."""
+        if not self._validate_soup(soup, "extract_project_status", url):
+            return {}
+
+        try:
+            # Find the project status block
+            status_elem = soup.select_one(".left-side .status-box li:nth-of-type(2) .status")
+            if not status_elem:
+                return None
+
+            # Extract icon class
+            icon_elem = status_elem.select_one("em")
+            icon_class = None
+            if icon_elem and icon_elem.has_attr("class"):
+                # Join multiple classes into a single string
+                icon_class = " ".join(icon_elem["class"])
+
+            # Extract status text
+            status_text_elem = status_elem.select_one(".unit strong.bhk-type")
+            status_text = status_text_elem.get_text(strip=True) if status_text_elem else None
+
+            return {
+                "name": status_text,
+                "icon": icon_class
+            }
+
+        except Exception as e:
+            print(f"Error scraping project status from {url}: {e}")
+            return None
+
 
     def extract_project_specifications(self, soup, url):
         """Scrape the details from a property's individual page."""
