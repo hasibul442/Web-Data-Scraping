@@ -72,6 +72,7 @@ class MongoDataImporter:
         # Map basic fields
         mapped_project = {
             "projectId": project.get("property_id"),
+            "title": project.get("name"),
             "developerId": project.get("builder_info", {}).get("builder_id"),
             "countryId": "IN",  # Assuming India
             "stateId": "HR",    # Haryana for Gurgaon
@@ -103,6 +104,11 @@ class MongoDataImporter:
             "AssignTo": None,
             "AssignToUser": None,
             "priceList": self._map_price_list(project),
+            "price_insights": project.get("price_insights", ""),
+            "specifications": project.get("specifications", ""),
+            "rera": project.get("rera", ""),
+            "nearby_landmarks": project.get("nearby_landmarks", ""),
+            "faq": project.get("faq", ""),
             "projectImages": self._map_project_images(project)
         }
         
