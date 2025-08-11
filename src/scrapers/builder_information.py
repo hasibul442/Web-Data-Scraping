@@ -12,41 +12,36 @@ def get_soup(url):
             response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
             if response.status_code == 200:
                 return BeautifulSoup(response.text, 'html.parser')
-            else:
-                print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code} | Attempt {attempt + 1}/{MAX_RETRIES}")
+            # Suppress error output - errors will be tracked by the main scraper
         except (requests.RequestException, requests.ConnectTimeout, requests.ReadTimeout) as e:
-            print(f"[EXCEPTION] While fetching {url} (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+            # Suppress error output - errors will be tracked by the main scraper
             if attempt < MAX_RETRIES - 1:
-                print(f"[RETRY] Waiting {RETRY_DELAY} seconds before retry...")
                 time.sleep(RETRY_DELAY)
         except Exception as e:
-            print(f"[UNEXPECTED ERROR] While fetching {url}: {e}")
+            # Suppress error output - errors will be tracked by the main scraper
             break
             
-    print(f"[FAILED] All {MAX_RETRIES} attempts failed for URL: {url}")
+    # Return None without printing - error will be tracked by main scraper
     return None
 
 def extract_builder_information(soupbody, url):
     # Check if soup is None first
     if soupbody is None:
-        print(f"[ERROR] No soup provided for builder information extraction from {url}")
-        return {}
+        return {"error": f"No soup provided for builder information extraction from {url}"}
         
     heading_tag = soupbody.select_one('section.about-builder-section#aboutBuilder h2')
     if not heading_tag:
-        print(f"[ERROR] Failed to find builder information section in {url}")
-        return {}
+        return {"error": f"Failed to find builder information section in {url}"}
 
     link_tag = heading_tag.find('a')
     if not link_tag or not link_tag.get('href'):
-        print(f"[ERROR] Builder link not found in h2 tag on {url}")
-        return {}
+        return {"error": f"Builder link not found in h2 tag on {url}"}
 
     builder_page_url = link_tag['href']
 
     soup = get_soup(builder_page_url)
     if not soup:
-        return {}
+        return {"error": f"Failed to fetch builder page: {builder_page_url}"}
 
     
     return {
@@ -69,6 +64,9 @@ def extract_builder_information(soupbody, url):
 
 def get_builder_short_description(soup):
     """Extract builder short description from the soup body."""
+    if not soup:
+        return {"image": {}, "experience": "", "projects": {}}
+        
     image_tag = soup.select_one('.builderLogo img')
     experience_tag = soup.select_one('.builderSortDetail .totalExperience')
     projects_tag = soup.select_one('.builderSortDetail .totalProject')
@@ -114,12 +112,18 @@ def get_builder_short_description(soup):
 
 def get_builder_description(soup):
     """Extract builder description from the soup body."""
+    if not soup:
+        return "No description available"
+        
     description_tag = soup.select_one('div.description#overview .descriptionBox')
     description = description_tag.get_text(strip=True) if description_tag else "No description available"
     return description
     
 def get_head_office_address(soup):
     """Extract builder head office details from the soup."""
+    if not soup:
+        return {}
+        
     try:
         address_box = soup.select_one('.mainOfficeBox .mainOfficeAddress')
         if not address_box:
@@ -139,11 +143,14 @@ def get_head_office_address(soup):
         }
 
     except Exception as e:
-        print(f"Error extracting head office address: {e}")
+        # Suppress error output - errors will be tracked by the main scraper
         return {}
     
 def get_branch_offices(soup):
     """Extract branch office addresses by city."""
+    if not soup:
+        return []
+        
     branch_offices = []
 
     # Select all office address containers within branchOfficeBox
@@ -167,6 +174,9 @@ def get_branch_offices(soup):
 
 def get_company_size(soup):
     """Extract company size and its description."""
+    if not soup:
+        return None
+        
     section = soup.select_one('#companySize')
     if not section:
         return None
@@ -184,6 +194,9 @@ def get_company_size(soup):
 
 def get_management_team(soup):
     """Extract management team details grouped by position."""
+    if not soup:
+        return {}
+        
     section = soup.select_one('#managementTeam')
     if not section:
         return {}
@@ -201,7 +214,8 @@ def get_management_team(soup):
         name_tag = profile.select_one('.profileDetail strong')
         desc_tag = profile.select_one('.profileDetail span')
 
-        image = img_tag.get('data-src')
+        # Handle null img_tag to prevent AttributeError
+        image = img_tag.get('data-src') if img_tag else None
         name = name_tag.get_text(strip=True) if name_tag else None
         description = desc_tag.get_text(strip=True) if desc_tag else None
 
@@ -222,7 +236,8 @@ def get_management_team(soup):
         name_tag = card.select_one('.profileName')
         role_tag = card.select_one('.designationName span')
 
-        image = img_tag.get('data-src')
+        # Handle null img_tag to prevent AttributeError
+        image = img_tag.get('data-src') if img_tag else None
         name = name_tag.get_text(strip=True) if name_tag else None
         description = role_tag.get_text(strip=True) if role_tag else None
 
@@ -236,6 +251,9 @@ def get_management_team(soup):
 
 def get_key_service_and_specialities(soup):
     """Extract the full inner HTML of the .descriptionBox section under #keyServices."""
+    if not soup:
+        return None
+        
     box = soup.select_one('#keyServices .descriptionBox')
     if not box:
         return None
@@ -243,6 +261,9 @@ def get_key_service_and_specialities(soup):
 
 def get_awards_and_recognition(soup):
     """Extract the full inner HTML of the .descriptionBox section under #keyServices."""
+    if not soup:
+        return None
+        
     box = soup.select_one('div#awards .awardDescription')
     if not box:
         return None
@@ -250,12 +271,18 @@ def get_awards_and_recognition(soup):
 
 def get_customer_care_number(soup):
     """Extract the customer care number from the contact section."""
+    if not soup:
+        return None
+        
     tag = soup.select_one('div#contact .descriptionBox .telephoneNumber a')
     if tag:
         return tag.get_text(strip=True)
     return None
 
 def extract_faq_data(soup):
+    if not soup:
+        return []
+        
     faqs = []
     panels = soup.select('#faq .accordianBox .panel')
     for panel in panels:
@@ -271,6 +298,9 @@ def extract_faq_data(soup):
     return faqs
 
 def extract_operating_cities(soup):
+    if not soup:
+        return []
+        
     city_links = []
     chip_boxes = soup.select('#operatingCities .chipFlexBox .chipFlex a.chipBox')
     for chip in chip_boxes:

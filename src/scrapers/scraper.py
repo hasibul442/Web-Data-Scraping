@@ -14,6 +14,8 @@ import re
 from tqdm import tqdm
 import json
 import os
+from datetime import datetime
+import os
 
 class PropertyScraper:
     """A class to scrape property listings from SquareYards."""
@@ -30,6 +32,9 @@ class PropertyScraper:
         # Failed items tracking
         self.failed_items = []
         self.failed_items_file = "output/failed_items.json"
+        # Builder error tracking
+        self.builder_errors = []
+        self.builder_errors_file = "output/builder_errors.json"
     
     def _validate_soup(self, soup, method_name, url=None):
         """Helper method to validate soup and log appropriate errors."""
@@ -90,6 +95,52 @@ class PropertyScraper:
         else:
             print("[FAILED ITEMS] No failed items to save")
     
+    def _track_builder_error(self, project_name, project_id, url, error_reason, page_number=None, item_index=None):
+        """Track builder information extraction errors."""
+        builder_error = {
+            "page_number": page_number,
+            "item_index": item_index,
+            "project_id": project_id,
+            "project_name": project_name,
+            "url": url,
+            "error_reason": error_reason,
+            "error_type": "builder_information_error",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        self.builder_errors.append(builder_error)
+    
+    def _save_builder_errors(self):
+        """Save builder errors to JSON file."""
+        if self.builder_errors:
+            os.makedirs(os.path.dirname(self.builder_errors_file), exist_ok=True)
+            
+            # Load existing builder errors to avoid duplicates
+            existing_errors = []
+            if os.path.exists(self.builder_errors_file):
+                try:
+                    with open(self.builder_errors_file, 'r', encoding='utf-8') as f:
+                        existing_errors = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError):
+                    existing_errors = []
+            
+            # Combine and deduplicate builder errors
+            all_errors = existing_errors + self.builder_errors
+            unique_errors = []
+            seen = set()
+            for error in all_errors:
+                key = (error.get('project_id'), error.get('url'), error.get('error_reason'))
+                if key not in seen:
+                    unique_errors.append(error)
+                    seen.add(key)
+            
+            with open(self.builder_errors_file, 'w', encoding='utf-8') as f:
+                json.dump(unique_errors, f, indent=2, ensure_ascii=False)
+            
+            print(f"[BUILDER ERRORS] Saved {len(self.builder_errors)} new builder errors to {self.builder_errors_file}")
+            print(f"[BUILDER ERRORS] Total unique builder errors: {len(unique_errors)}")
+        else:
+            print("[BUILDER ERRORS] No builder errors to save")
+    
     def scrape_page(self, page):
         """Scrape a single page and return property data."""
         try:
@@ -109,7 +160,7 @@ class PropertyScraper:
                 return []
 
             page_data = []
-            for item_index, item in enumerate(tqdm(listings[20:25])):
+            for item_index, item in enumerate(tqdm(listings)):
                 try:
                     property_data = self._extract_property_data(item, page, item_index)
                     if property_data:
@@ -203,8 +254,37 @@ class PropertyScraper:
             
         project_spec = self.extract_project_specifications(soup, url)
         amenities = self.extract_amenities(soup, url)
-        # Use the class method for builder info instead of the imported function
-        builder_info = extract_builder_information(soup, url)
+        
+        # Use the class method for builder info with error handling
+        try:
+            builder_info = extract_builder_information(soup, url)
+            
+            # Check if builder_info contains an error and track it
+            if isinstance(builder_info, dict) and "error" in builder_info:
+                self._track_builder_error(
+                    project_name=project_name,
+                    project_id=project_id,
+                    url=url,
+                    error_reason=builder_info["error"],
+                    page_number=page_number,
+                    item_index=item_index
+                )
+                # Set builder_info to empty dict for further processing
+                builder_info = {}
+                
+        except Exception as e:
+            # Catch any unexpected errors in builder information extraction
+            error_msg = f"Error scraping builder information from {url}: {str(e)}"
+            self._track_builder_error(
+                project_name=project_name,
+                project_id=project_id,
+                url=url,
+                error_reason=error_msg,
+                page_number=page_number,
+                item_index=item_index
+            )
+            builder_info = {}
+        
         builder_info_basic = self.extract_builder_information_basic(soup, url)
         property_spec = self.extract_property_specification(soup, url)
         property_about = self.extract_property_about(soup, url)
@@ -214,7 +294,7 @@ class PropertyScraper:
         price_list = self.extract_price_list(soup)
         rera = self.extract_rera_details(soup)
         floor_plan = self.extract_floor_plans(soup)
-        all_media = extract_media_by_sub_tab(project_id, url)
+        # all_media = extract_media_by_sub_tab(project_id, url)
         location_insights_basic = self.extract_location_description_and_insights(soup)
         detailed_location_insights = extract_location_insights(location_insights_basic["know_more_url"]) if location_insights_basic and location_insights_basic.get("know_more_url") else None
         cordinates = self.extract_coordinates(soup, url)
@@ -252,7 +332,7 @@ class PropertyScraper:
             'rera': rera,
             'faq': faq,
             'builder_info': builder_info_basic,  # Reference to builder info
-            'all_media': all_media,
+            # 'all_media': all_media,
         }
     
     def get_soup(self, url):
@@ -296,6 +376,9 @@ class PropertyScraper:
         
         # Save failed items to JSON file
         self._save_failed_items()
+        
+        # Save builder errors to JSON file
+        self._save_builder_errors()
         
         # Return structured output
         return {
@@ -405,7 +488,7 @@ class PropertyScraper:
             return builder_info
 
         except Exception as e:
-            print(f"Error scraping builder information from {url}: {e}")
+            # Track builder error instead of printing to console
             return {}
         
     def extract_property_specification(self, soup, url):
