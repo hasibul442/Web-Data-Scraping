@@ -69,8 +69,9 @@ pip install pymongo python-dotenv
 # Import to MongoDB
 python mongodb/run_mongo_import.py
 
-# Check for any builder information errors
-# (automatically saved to output/builder_errors.json during scraping)
+# Check for any extraction errors (automatically saved during scraping)
+# - Builder information errors: output/builder_errors.json
+# - Location insights errors: output/location_errors.json
 ```
 
 ### 📚 Available Documentation

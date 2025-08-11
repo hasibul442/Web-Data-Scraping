@@ -35,6 +35,9 @@ class PropertyScraper:
         # Builder error tracking
         self.builder_errors = []
         self.builder_errors_file = "output/builder_errors.json"
+        # Location error tracking
+        self.location_errors = []
+        self.location_errors_file = "output/location_errors.json"
     
     def _validate_soup(self, soup, method_name, url=None):
         """Helper method to validate soup and log appropriate errors."""
@@ -140,6 +143,52 @@ class PropertyScraper:
             print(f"[BUILDER ERRORS] Total unique builder errors: {len(unique_errors)}")
         else:
             print("[BUILDER ERRORS] No builder errors to save")
+    
+    def _track_location_error(self, project_name, project_id, url, error_reason, page_number=None, item_index=None):
+        """Track location insights extraction errors."""
+        location_error = {
+            "page_number": page_number,
+            "item_index": item_index,
+            "project_id": project_id,
+            "project_name": project_name,
+            "url": url,
+            "error_reason": error_reason,
+            "error_type": "location_insights_error",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        self.location_errors.append(location_error)
+    
+    def _save_location_errors(self):
+        """Save location errors to JSON file."""
+        if self.location_errors:
+            os.makedirs(os.path.dirname(self.location_errors_file), exist_ok=True)
+            
+            # Load existing location errors to avoid duplicates
+            existing_errors = []
+            if os.path.exists(self.location_errors_file):
+                try:
+                    with open(self.location_errors_file, 'r', encoding='utf-8') as f:
+                        existing_errors = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError):
+                    existing_errors = []
+            
+            # Combine and deduplicate location errors
+            all_errors = existing_errors + self.location_errors
+            unique_errors = []
+            seen = set()
+            for error in all_errors:
+                key = (error.get('project_id'), error.get('url'), error.get('error_reason'))
+                if key not in seen:
+                    unique_errors.append(error)
+                    seen.add(key)
+            
+            with open(self.location_errors_file, 'w', encoding='utf-8') as f:
+                json.dump(unique_errors, f, indent=2, ensure_ascii=False)
+            
+            print(f"[LOCATION ERRORS] Saved {len(self.location_errors)} new location errors to {self.location_errors_file}")
+            print(f"[LOCATION ERRORS] Total unique location errors: {len(unique_errors)}")
+        else:
+            print("[LOCATION ERRORS] No location errors to save")
     
     def scrape_page(self, page):
         """Scrape a single page and return property data."""
@@ -296,7 +345,37 @@ class PropertyScraper:
         floor_plan = self.extract_floor_plans(soup)
         # all_media = extract_media_by_sub_tab(project_id, url)
         location_insights_basic = self.extract_location_description_and_insights(soup)
-        detailed_location_insights = extract_location_insights(location_insights_basic["know_more_url"]) if location_insights_basic and location_insights_basic.get("know_more_url") else None
+        
+        # Extract detailed location insights with error handling
+        detailed_location_insights = None
+        if location_insights_basic and location_insights_basic.get("know_more_url"):
+            try:
+                detailed_location_insights = extract_location_insights(location_insights_basic["know_more_url"])
+                
+                # Check if detailed_location_insights contains an error
+                if isinstance(detailed_location_insights, dict) and "error" in detailed_location_insights:
+                    self._track_location_error(
+                        project_name=project_name,
+                        project_id=project_id,
+                        url=location_insights_basic["know_more_url"],
+                        error_reason=detailed_location_insights["error"],
+                        page_number=page_number,
+                        item_index=item_index
+                    )
+                    detailed_location_insights = None
+                    
+            except Exception as e:
+                # Catch any unexpected errors in location insights extraction
+                error_msg = f"Error extracting location insights from {location_insights_basic['know_more_url']}: {str(e)}"
+                self._track_location_error(
+                    project_name=project_name,
+                    project_id=project_id,
+                    url=location_insights_basic["know_more_url"],
+                    error_reason=error_msg,
+                    page_number=page_number,
+                    item_index=item_index
+                )
+                detailed_location_insights = None
         cordinates = self.extract_coordinates(soup, url)
         # Get or create IDs for builder and location
         builder_id = self._get_or_create_builder_id(builder_info)
@@ -379,6 +458,9 @@ class PropertyScraper:
         
         # Save builder errors to JSON file
         self._save_builder_errors()
+        
+        # Save location errors to JSON file
+        self._save_location_errors()
         
         # Return structured output
         return {

@@ -16,18 +16,16 @@ def get_soup(url):
             response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
             if response.status_code == 200:
                 return BeautifulSoup(response.text, 'html.parser')
-            else:
-                print(f"[ERROR] Failed to fetch page: {url} | Status Code: {response.status_code} | Attempt {attempt + 1}/{MAX_RETRIES}")
+            # Suppress error output - errors will be tracked by the main scraper
         except (requests.RequestException, requests.ConnectTimeout, requests.ReadTimeout) as e:
-            print(f"[EXCEPTION] While fetching {url} (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+            # Suppress error output - errors will be tracked by the main scraper
             if attempt < MAX_RETRIES - 1:
-                print(f"[RETRY] Waiting {RETRY_DELAY} seconds before retry...")
                 time.sleep(RETRY_DELAY)
         except Exception as e:
-            print(f"[UNEXPECTED ERROR] While fetching {url}: {e}")
+            # Suppress error output - errors will be tracked by the main scraper
             break
             
-    print(f"[FAILED] All {MAX_RETRIES} attempts failed for URL: {url}")
+    # Return None without printing - error will be tracked by main scraper
     return None
 
 def extract_location_insights(know_more_url):
@@ -73,8 +71,8 @@ def extract_location_insights(know_more_url):
         return insights_data
         
     except Exception as e:
-        print(f"Error extracting location insights from {know_more_url}: {e}")
-        return None
+        # Return error information instead of printing to console
+        return {"error": f"Error extracting location insights from {know_more_url}: {str(e)}"}
 
 def extract_rank_price(soup):
     """Extract locality rank, average sale price, and average rental."""
@@ -132,7 +130,7 @@ def extract_rank_price(soup):
 
 
     except Exception as e:
-        print(f"Error extracting rank: {e}")
+        # Suppress error output - errors will be tracked by the main scraper
         return {
             "rank": {
                 "position": "",
@@ -176,7 +174,7 @@ def extract_property_counts(soup):
         return result
 
     except Exception as e:
-        print(f"Error extracting property counts: {e}")
+        # Suppress error output - errors will be tracked by the main scraper
         return {
             "new_project_count": "",
             "properties_for_sale_count": "",
@@ -208,7 +206,7 @@ def extract_about_sector(soup):
         return result
 
     except Exception as e:
-        print(f"Error extracting about sector: {e}")
+        # Suppress error output - errors will be tracked by the main scraper
         return {
             "overview": "",
             "whats_good": [],
@@ -251,7 +249,7 @@ def extract_indices(soup):
         return result
 
     except Exception as e:
-        print(f"Error extracting indices: {e}")
+        # Suppress error output - errors will be tracked by the main scraper
         return []
     
 def extract_neighbourhood(soup):
@@ -287,7 +285,7 @@ def extract_neighbourhood(soup):
         return result
 
     except Exception as e:
-        print(f"Error extracting neighbourhood info: {e}")
+        # Suppress error output - errors will be tracked by the main scraper
         return []
  
 def extract_demand_supply(soup):
@@ -419,5 +417,5 @@ def extract_price_insights_for_sector(soup, url):
         return insights_data
 
     except Exception as e:
-        print(f"Error extracting sector price insights from {url}: {e}")
-        return {}
+        # Return error information instead of printing to console
+        return {"error": f"Error extracting sector price insights from {url}: {str(e)}"}
