@@ -52,12 +52,12 @@ class MongoDataImporter:
         cleaned = re.sub(r'[₹,\s]', '', price_str)
         return cleaned if cleaned else None
     
-    def extract_area_sqft(self, area_str: str) -> Optional[float]:
-        """Extract square feet from area string."""
-        if not area_str:
-            return None
-        match = re.search(r'(\d+(?:\.\d+)?)', area_str.replace(',', ''))
-        return float(match.group(1)) if match else None
+    # def extract_area_sqft(self, area_str: str) -> Optional[float]:
+    #     """Extract square feet from area string."""
+    #     if not area_str:
+    #         return None
+    #     match = re.search(r'(\d+(?:\.\d+)?)', area_str.replace(',', ''))
+    #     return float(match.group(1)) if match else None
     
     def extract_bedroom_count(self, unit_type: str) -> Optional[str]:
         """Extract bedroom count from unit type."""
@@ -232,7 +232,7 @@ class MongoDataImporter:
             area_str = first_plan.get("area", "")
             if area_str:
                 # Extract square feet from area string like "2426 Sq.Ft."
-                return self.extract_area_sqft(area_str)
+                return area_str
         
         return None
     
