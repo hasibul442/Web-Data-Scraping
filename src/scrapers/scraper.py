@@ -343,7 +343,7 @@ class PropertyScraper:
         price_list = self.extract_price_list(soup)
         rera = self.extract_rera_details(soup)
         floor_plan = self.extract_floor_plans(soup)
-        # all_media = extract_media_by_sub_tab(project_id, url)
+        all_media = extract_media_by_sub_tab(project_id, url)
         location_insights_basic = self.extract_location_description_and_insights(soup)
         
         # Extract detailed location insights with error handling
@@ -411,7 +411,7 @@ class PropertyScraper:
             'rera': rera,
             'faq': faq,
             'builder_info': builder_info_basic,  # Reference to builder info
-            # 'all_media': all_media,
+            'all_media': all_media,
         }
     
     def get_soup(self, url):

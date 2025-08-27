@@ -7,7 +7,7 @@ HEADERS = {
 BASE_URL = "https://www.squareyards.com/new-projects-in-gurgaon?page="
 
 # Scraping settings
-MAX_WORKERS = 5
+MAX_WORKERS = 10
 REQUEST_TIMEOUT = 60  # Reduced from 60 to 30 seconds
 MAX_RETRIES = 3       # Number of retries for failed requests
 RETRY_DELAY = 2       # Delay between retries in seconds

@@ -18,7 +18,7 @@ class MongoDataImporter:
     Maps JSON structure to provided MongoDB schemas for projects, developers, and locations.
     """
     
-    def __init__(self, mongodb_uri: str = "mongodb://localhost:27017", database_name: str = "gurgaon_real_estate"):
+    def __init__(self, mongodb_uri: str = "mongodb://localhost:27017", database_name: str = "real_estate"):
         """Initialize MongoDB connection and collections."""
         try:
             self.client = MongoClient(mongodb_uri)
@@ -179,13 +179,14 @@ class MongoDataImporter:
             unit_type = price_item.get("unit_type", "")
             bedroom = self.extract_bedroom_count(unit_type)
             
-            # Find corresponding floor plan
+            # Find corresponding floor plan and extract carpet area from floor plans
             floor_plan_images = self._find_floor_plan_images(bedroom, floor_plans)
+            carpet_area = self._extract_carpet_area_from_floor_plans(bedroom, floor_plans)
             
             price_entry = {
                 "propertyType": "Apartment",
                 "bedroom": bedroom,
-                "carpetArea": self.extract_area_sqft(unit_type),
+                "carpetArea": carpet_area,
                 "price": price_item.get("price"),
                 "floorPlan": floor_plan_images
             }
@@ -216,6 +217,24 @@ class MongoDataImporter:
                 })
         
         return floor_plan_data
+    
+    def _extract_carpet_area_from_floor_plans(self, bedroom: str, floor_plans: Dict) -> Optional[float]:
+        """Extract carpet area from floor plans data for specific bedroom configuration."""
+        if not bedroom:
+            return None
+        
+        bhk_key = f"{bedroom}_bhk"
+        plans = floor_plans.get(bhk_key, [])
+        
+        # Get the first plan's area (assuming all plans of same BHK have same area)
+        if plans and len(plans) > 0:
+            first_plan = plans[0]
+            area_str = first_plan.get("area", "")
+            if area_str:
+                # Extract square feet from area string like "2426 Sq.Ft."
+                return self.extract_area_sqft(area_str)
+        
+        return None
     
     def _map_project_images(self, project: Dict[str, Any]) -> Dict[str, List[str]]:
         """Map project images dynamically from all_media."""
