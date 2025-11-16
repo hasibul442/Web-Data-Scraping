@@ -307,7 +307,6 @@ class PropertyScraper:
         # Use the class method for builder info with error handling
         try:
             builder_info = extract_builder_information(soup, url)
-            
             # Check if builder_info contains an error and track it
             if isinstance(builder_info, dict) and "error" in builder_info:
                 self._track_builder_error(
@@ -553,8 +552,7 @@ class PropertyScraper:
 
             # Extract builder name
             builder_name_elem = soup.select_one('section.about-builder-section#aboutBuilder')
-            
-            builder_name = safe_get_text(builder_name_elem.select_one('h2 a')) if builder_name_elem else None
+            builder_name = safe_get_text(builder_name_elem.select_one('strong a')) if builder_name_elem else None
             builder_image = builder_name_elem.select_one('figure img')
             image = builder_image.get('data-src') or builder_image.get('src') if builder_image else None
             builder_total_projects = safe_get_text(builder_name_elem.select_one('.total-project-list li:nth-of-type(1) strong'))
@@ -568,7 +566,6 @@ class PropertyScraper:
             builder_info['description'] = builder_description
 
             return builder_info
-
         except Exception as e:
             # Track builder error instead of printing to console
             return {}
