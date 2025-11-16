@@ -29,7 +29,8 @@ def extract_builder_information(soupbody, url):
     if soupbody is None:
         return {"error": f"No soup provided for builder information extraction from {url}"}
         
-    heading_tag = soupbody.select_one('section.about-builder-section#aboutBuilder h2')
+    heading_tag = soupbody.select_one('section.about-builder-section#aboutBuilder strong')
+
     if not heading_tag:
         return {"error": f"Failed to find builder information section in {url}"}
 
@@ -38,7 +39,6 @@ def extract_builder_information(soupbody, url):
         return {"error": f"Builder link not found in h2 tag on {url}"}
 
     builder_page_url = link_tag['href']
-
     soup = get_soup(builder_page_url)
     if not soup:
         return {"error": f"Failed to fetch builder page: {builder_page_url}"}
