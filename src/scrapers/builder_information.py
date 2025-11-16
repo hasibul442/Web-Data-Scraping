@@ -46,7 +46,7 @@ def extract_builder_information(soupbody, url):
     
     return {
         "id" : builder_page_url.split('/')[-2],
-        "name": heading_tag.get_text(strip=True).replace('About - ', '') if heading_tag else "No Name Found",
+        "name": get_builder_short_description(soup).get("name", ""),
         "image": get_builder_short_description(soup).get("image", {}),
         "experience": get_builder_short_description(soup).get("experience", ""),
         "projects": get_builder_short_description(soup).get("projects", {}),
@@ -65,9 +65,10 @@ def extract_builder_information(soupbody, url):
 def get_builder_short_description(soup):
     """Extract builder short description from the soup body."""
     if not soup:
-        return {"image": {}, "experience": "", "projects": {}}
+        return {"image": {}, "experience": "", "projects": {}, "name": ""}
         
     image_tag = soup.select_one('.builderLogo img')
+    name = soup.select_one('.builderLogoBox h1.builderName')
     experience_tag = soup.select_one('.builderSortDetail .totalExperience')
     projects_tag = soup.select_one('.builderSortDetail .totalProject')
 
@@ -107,6 +108,7 @@ def get_builder_short_description(soup):
     return {
             "image": {"src": image_src, "alt": image_alt},
             "experience": experience_tag.get_text(strip=True).replace(' Years Experience', '') if experience_tag else "",
+            "name": name.get_text(strip=True) if name else "",
             "projects": {"on_going": ongoing_count, "past": past_count, "total": total_count}
         }
 

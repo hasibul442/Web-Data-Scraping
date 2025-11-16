@@ -22,7 +22,7 @@ def main():
         from mongodb.importers.mongo_data_importer import MongoDataImporter
         
         # Default input file (can be customized)
-        input_file = os.path.join(project_root, 'output', 'gurgaon_properties_with_local_assets.json')
+        input_file = os.path.join(project_root, 'output', 'gurgaon_properties.json')
         
         if not os.path.exists(input_file):
             print(f"❌ Input file not found: {input_file}")

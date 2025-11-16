@@ -8,8 +8,8 @@ from typing import Dict, Any
 
 # MongoDB Configuration
 MONGODB_CONFIG = {
-    "uri": os.getenv("MONGODB_URI", "mongodb://localhost:27017"),
-    "database": os.getenv("MONGODB_DATABASE", "real_estate"),
+    "uri": os.getenv("MONGODB_URI", "mongodb+srv://starjahidbd_db_user:RUTGjci34AmU5DlP@cluster0.b7lygfq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"),
+    "database": os.getenv("MONGODB_DATABASE", "gurgaon_commercial"),
     "collections": {
         "projects": "projects",
         "developers": "developers", 

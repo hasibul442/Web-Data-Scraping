@@ -559,7 +559,7 @@ class PropertyScraper:
             builder_experience = safe_get_text(builder_name_elem.select_one('.total-project-list li:nth-of-type(2) strong'))
             builder_description = safe_get_text(builder_name_elem.select_one('.content-box p'))
 
-            builder_info['name'] = builder_name.strip('About - ')
+            builder_info['name'] = builder_name.strip('About ')
             builder_info['image'] = image.rpartition('?')[0] if '?' in image else image
             builder_info['total_projects'] = builder_total_projects
             builder_info['experience'] = builder_experience
