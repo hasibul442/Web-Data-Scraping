@@ -68,6 +68,13 @@ Web-Data-Scraping/
 └── .gitignore                       # Git ignore file
 ```
 
+## 📋 Env Create
+To create a virtual environment for the project, run the following commands:
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+```
 ## 🚀 Quick Start
 
 ### 1. Install Dependencies
