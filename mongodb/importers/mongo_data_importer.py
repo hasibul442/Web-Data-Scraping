@@ -184,7 +184,7 @@ class MongoDataImporter:
             carpet_area = self._extract_carpet_area_from_floor_plans(bedroom, floor_plans)
             
             price_entry = {
-                "propertyType": "Apartment",
+                "propertyType": "Commercial",
                 "bedroom": bedroom,
                 "carpetArea": carpet_area,
                 "price": price_item.get("price"),
