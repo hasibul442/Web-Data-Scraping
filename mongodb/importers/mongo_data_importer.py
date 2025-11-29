@@ -177,6 +177,7 @@ class MongoDataImporter:
         
         for price_item in project_prices:
             unit_type = price_item.get("unit_type", "")
+            area_text = price_item.get("area", "")
             bedroom = self.extract_bedroom_count(unit_type)
             
             # Find corresponding floor plan and extract carpet area from floor plans
@@ -184,9 +185,9 @@ class MongoDataImporter:
             carpet_area = self._extract_carpet_area_from_floor_plans(bedroom, floor_plans)
             
             price_entry = {
-                "propertyType": "Commercial",
+                "propertyType": unit_type,
                 "bedroom": bedroom,
-                "carpetArea": carpet_area,
+                "carpetArea": area_text,
                 "price": price_item.get("price"),
                 "floorPlan": floor_plan_images
             }

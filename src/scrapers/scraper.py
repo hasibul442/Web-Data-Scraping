@@ -742,12 +742,15 @@ class PropertyScraper:
                     unit_info = cols[0]
                     unit_type = unit_info.find('span')
                     area = unit_info.find('strong')
-
+                    area_text = area.select_one('span.unit-value') if area else None
+                    area_unit = unit_info.select_one('.sqft-dropdown-box span.unit-label') if area else ''
+                    
                     # Extract price
                     price = cols[1].find('strong')
 
                     price_list.append({
-                        'unit_type': (re.sub(r'\s+', ' ', unit_type.get_text(strip=True)) if unit_type else '') + " " + (area.get_text(strip=True) if area else '') or None,
+                        'unit_type': re.sub(r'\s+', ' ', unit_type.get_text(strip=True)) if unit_type else None,
+                        'area': (area_text.get_text(strip=True) if area_text else '')+" " + (area_unit.get_text(strip=True) if area_unit else '') if area else None,
                         'price': price.get_text(strip=True) if price else None
                     })
 
